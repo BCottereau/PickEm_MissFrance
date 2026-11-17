@@ -9,7 +9,7 @@
   const RANKS = ['Miss France', '1re dauphine', '2e dauphine', '3e dauphine', '4e dauphine'];
   const rankLow = i => i === 0 ? 'Miss France' : RANKS[i];
   const B32 = '0123456789abcdefghijklmnopqrstuv';
-  const LS = { picks: 'mf27.picks', name: 'mf27.name', tab: 'mf27.tab' };
+  const LS = { picks: 'mf27.picks', name: 'mf27.name', tab: 'mf27.tab', oddsW: 'mf27.oddsW' };
   // Noms de régions utilisés dans les données historiques (en anglais) pour chaque candidate
   const REGION_KEYS = { Tahiti: ['French Polynesia', 'Tahiti'], Languedoc: ['Languedoc', 'Languedoc-Roussillon'] };
   const FR = {
@@ -48,7 +48,8 @@
     cands: [], byId: new Map(), winners: [], replacements: [], recent: {},
     results: null, players: [], photoPreview: {},
     picks: Array(12).fill(null), name: '', selected: null, tab: 'pick', sort: 'region', query: '',
-    poolFilter: 'all', candFilter: 'all', ficheRank: 0, ficheFor: null
+    poolFilter: 'all', candFilter: 'all', ficheRank: 0, ficheFor: null,
+    instagram: null, oddsW: 0.5
   };
 
 
@@ -806,7 +807,7 @@
           <span class="sash big">Miss ${esc(c.region)}</span>
           <h2 id="sheet-title" class="fiche-name">${esc(c.name)}</h2>
           <p class="fiche-meta">${c.age} ans · ${heightTxt(c.height_m)} · ${esc(c.hometown)}</p>
-          ${instaHandle(c) ? `<a class="insta" href="${esc(instaUrl(c))}" target="_blank" rel="noopener">${ICON.insta}@${esc(instaHandle(c))}</a>` : ''}
+          ${instaHandle(c) ? `<a class="insta" href="${esc(instaUrl(c))}" target="_blank" rel="noopener">${ICON.insta}@${esc(instaHandle(c))}${(() => { const sn = snapshots(); const n = followersOf(sn[sn.length - 1], c.id); return n ? ` · ${fmtK(n)} abonnés` : ''; })()}</a>` : ''}
           ${c.occupation ? `<p class="fiche-occ">${ICON.study}<span>${esc(c.occupation)}</span></p>` : ''}
           ${c.elected ? `<p class="muted small elected">${ICON.crown}${esc(c.elected)}${c.source_url ? ` · <a href="${esc(c.source_url)}" target="_blank" rel="noopener">portrait sur TV Mag ${ICON.link}</a>` : ''}</p>` : ''}
           ${GH.isAdmin ? `<div class="row-actions admin-row">
@@ -1015,6 +1016,138 @@
     }));
   }
 
+  /* ---------- Favorites : indice palmarès + Instagram ---------- */
+  const ODDS_EVERY_DAYS = 3;
+  const fmtInt = n => Number(n).toLocaleString('fr-FR');
+  const fmtK = n => n >= 10000 ? `${Math.round(n / 1000)} k` : n >= 1000 ? `${(n / 1000).toFixed(1).replace('.', ',')} k` : String(n);
+  const fmtDate = iso => new Date(iso + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+  const daysSince = iso => Math.floor((Date.now() - new Date(iso + 'T00:00:00').getTime()) / 864e5);
+  const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+
+  function snapshots() {
+    const s = state.instagram && Array.isArray(state.instagram.snapshots) ? state.instagram.snapshots : [];
+    return [...s].filter(x => x && x.date && x.followers).sort((a, b) => a.date.localeCompare(b.date));
+  }
+  const followersOf = (snap, id) => (snap && Number(snap.followers[String(id)])) || 0;
+
+  // Indice : w × part du palmarès (titres + 1) + (1 − w) × part des abonnés
+  function computeOdds(snap, w) {
+    const tSum = state.cands.reduce((s, c) => s + (c.past_titles || 0) + 1, 0);
+    const fSum = state.cands.reduce((s, c) => s + followersOf(snap, c.id), 0) || 1;
+    return state.cands.map(c => {
+      const t = ((c.past_titles || 0) + 1) / tSum * w * 100;
+      const f = followersOf(snap, c.id) / fSum * (1 - w) * 100;
+      return { c, t, f, p: t + f, followers: followersOf(snap, c.id) };
+    }).sort((a, b) => b.p - a.p);
+  }
+
+  function buildOddsTab() {
+    $('#tab-odds').innerHTML = `
+      <h1 class="h1 page-title">Les favorites</h1>
+      <div id="oddsInfo"></div>
+      <div class="odds-ctrl card-block">
+        <label for="oddsW" class="odds-ctrl-label"><span>Palmarès de la région</span><b id="oddsWTxt"></b><span>Instagram</span></label>
+        <input id="oddsW" type="range" min="0" max="100" step="10" value="${Math.round(state.oddsW * 100)}" aria-label="Poids du palmarès par rapport à Instagram">
+      </div>
+      <div class="odds-legend" aria-hidden="true">
+        <span><i class="sw sw-t"></i>Palmarès de la région</span>
+        <span><i class="sw sw-f"></i>Abonnés Instagram</span>
+      </div>
+      <div id="oddsChart" class="odds" role="list"></div>
+      <details class="more odds-how">
+        <summary>Comment est calculé l’indice ?</summary>
+        <p class="small">Chaque candidate reçoit une part du palmarès (titres de Miss France de sa région + 1, pour ne pas donner 0 aux régions jamais titrées) et une part de la popularité (ses abonnés Instagram sur le total des 31). L’indice mélange les deux selon le curseur, puis le total fait 100 %.</p>
+        <p class="small muted">C’est un indice pour s’amuser, pas une vraie probabilité : le jury et le vote du public ne regardent ni l’histoire de la région ni Instagram.</p>
+      </details>`;
+    $('#oddsW').addEventListener('input', e => {
+      state.oddsW = +e.target.value / 100;
+      save(LS.oddsW, state.oddsW);
+      renderOdds();
+    });
+  }
+
+  function renderOdds() {
+    const el = $('#oddsChart');
+    if (!el) return;
+    const snaps = snapshots();
+    const last = snaps[snaps.length - 1];
+    const prev = snaps[snaps.length - 2];
+    const w = state.oddsW;
+    $('#oddsWTxt').textContent = `${Math.round(w * 100)} % / ${Math.round((1 - w) * 100)} %`;
+    if (!last) {
+      $('#oddsInfo').innerHTML = '';
+      el.innerHTML = '<p class="empty-msg">Pas encore de relevé Instagram.</p>';
+      return;
+    }
+    const age = daysSince(last.date);
+    $('#oddsInfo').innerHTML = `<p class="odds-date">${ICON.insta}<span>Abonnés relevés le <b>${fmtDate(last.date)}</b>${age >= ODDS_EVERY_DAYS ? ' · nouveau relevé attendu' : ` · prochain relevé le ${fmtDate(addDays(last.date, ODDS_EVERY_DAYS))}`}</span></p>`;
+    const rows = computeOdds(last, w);
+    const prevRank = prev ? new Map(computeOdds(prev, w).map((r, i) => [r.c.id, i])) : null;
+    const max = rows[0].p;
+    el.innerHTML = rows.map((r, i) => {
+      const c = r.c;
+      const dF = prev ? r.followers - followersOf(prev, c.id) : null;
+      const move = prevRank ? prevRank.get(c.id) - i : 0;
+      const mv = move > 0 ? `<span class="mv up" title="Gagne ${move} place${move > 1 ? 's' : ''}">▲${move}</span>` : move < 0 ? `<span class="mv down" title="Perd ${-move} place${move < -1 ? 's' : ''}">▼${-move}</span>` : '';
+      const pct = v => `${v.toFixed(1).replace('.', ',')} %`;
+      return `<details class="odd" role="listitem">
+          <summary>
+            <span class="odd-rank">${i + 1}</span>
+            ${avatar(c, 's')}
+            <span class="odd-main">
+              <span class="odd-line"><b>${esc(c.region)}</b>${mv}<span class="odd-p">${pct(r.p)}</span></span>
+              <span class="odd-bar" style="width:${(r.p / max * 100).toFixed(1)}%"><span class="seg-t" style="flex-grow:${r.t.toFixed(3)}"></span><span class="seg-f" style="flex-grow:${r.f.toFixed(3)}"></span></span>
+            </span>
+          </summary>
+          <div class="odd-detail">
+            <span><i class="sw sw-t"></i>Palmarès : ${c.past_titles ? `${c.past_titles} titre${c.past_titles > 1 ? 's' : ''}` : 'aucun titre'} → ${pct(r.t)}</span>
+            <span><i class="sw sw-f"></i>Instagram : ${fmtInt(r.followers)} abonnés${dF != null ? ` (${dF >= 0 ? '+' : ''}${fmtInt(dF)} depuis le ${fmtDate(prev.date)})` : ''} → ${pct(r.f)}</span>
+            <button class="btn small" data-action="info" data-cid="${c.id}">Voir la fiche de ${esc(c.name.split(' ')[0])}</button>
+          </div>
+        </details>`;
+    }).join('');
+  }
+
+  /* ---------- Admin : relevé des abonnés ---------- */
+  function instaAdminHTML() {
+    const snaps = snapshots();
+    const last = snaps[snaps.length - 1];
+    const late = !last || daysSince(last.date) >= ODDS_EVERY_DAYS;
+    const today = new Date().toISOString().slice(0, 10);
+    return `<details id="instaEditor" class="card-block" ${instaEditorOpen ? 'open' : ''}>
+        <summary>Abonnés Instagram ${late ? '<span class="badge rose">relevé à faire</span>' : ''}</summary>
+        <p class="muted small">Dernier relevé : ${last ? `${fmtDate(last.date)} (${daysSince(last.date)} j)` : 'aucun'}. Un relevé tous les ${ODDS_EVERY_DAYS} jours : ouvrez chaque compte (lien), notez le nombre d’abonnés, puis publiez. L’onglet « Favorites » se met à jour pour tout le monde.</p>
+        <label class="field"><span class="field-label">Date du relevé</span><input id="instaDate" type="date" value="${today}" max="${today}"></label>
+        <div class="insta-grid">${[...state.cands].sort((a, b) => a.region.localeCompare(b.region, 'fr')).map(c => `
+          <label class="insta-row">
+            <span><b>${esc(c.region)}</b>${instaHandle(c) ? `<a href="${esc(instaUrl(c))}" target="_blank" rel="noopener">@${esc(instaHandle(c))}</a>` : ''}</span>
+            <input type="number" inputmode="numeric" min="0" step="1" data-insta="${c.id}" value="${last ? followersOf(last, c.id) || '' : ''}" aria-label="Abonnés de Miss ${esc(c.region)}">
+          </label>`).join('')}</div>
+        <p id="instaErr" class="err" role="alert"></p>
+        <div class="row-actions"><button class="btn primary" data-action="save-insta">Publier ce relevé</button></div>
+      </details>`;
+  }
+  let instaEditorOpen = false;
+
+  async function saveInsta() {
+    const date = $('#instaDate').value;
+    const err = m => { $('#instaErr').textContent = m; };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return err('Date invalide');
+    const followers = {};
+    for (const inp of document.querySelectorAll('[data-insta]')) {
+      const v = inp.value.replace(/[\s.]/g, '');
+      if (!/^\d+$/.test(v)) return err(`Nombre manquant ou invalide : Miss ${cand(+inp.dataset.insta).region}`);
+      followers[inp.dataset.insta] = +v;
+    }
+    const data = await adminWrite('Relevé Instagram', () => GH.updateJSON('data/instagram.json', cur => {
+      const snaps = (cur && Array.isArray(cur.snapshots) ? cur.snapshots : []).filter(s => s.date !== date);
+      snaps.push({ date, source: 'Relevé de l’organisateur', followers });
+      snaps.sort((a, b) => a.date.localeCompare(b.date));
+      return { _aide: (cur && cur._aide) || '', snapshots: snaps };
+    }, `Instagram : relevé du ${date}`)).catch(() => null);
+    if (data) { state.instagram = data; renderOdds(); renderAdmin(); }
+  }
+
   /* ---------- Rendu : Admin (organisateur uniquement) ---------- */
   function renderAdmin() {
     const el = $('#tab-admin');
@@ -1037,6 +1170,8 @@
           <button class="btn ghost small" data-action="remove-player" data-name="${esc(p.name)}" aria-label="Retirer ${esc(p.name)}">${ICON.trash}</button></li>`).join('')}</ul>` : ''}
       </div>
 
+      ${instaAdminHTML()}
+
       <details id="resEditor" class="card-block" ${resEditorOpen ? 'open' : ''}>
         <summary>Résultats de l’élection</summary>
         <div id="resForm"></div>
@@ -1055,6 +1190,7 @@
           </div>`).join('')}</div>
       </div>`;
     $('#resEditor').addEventListener('toggle', e => { resEditorOpen = e.target.open; if (e.target.open) renderResForm(); });
+    $('#instaEditor').addEventListener('toggle', e => { instaEditorOpen = e.target.open; });
     if (resEditorOpen) renderResForm();
   }
   let resEditorOpen = false;
@@ -1099,16 +1235,16 @@
     saveResults({ top12: [...top12], miss_france: order[0], dauphines: order.slice(1) });
   }
 
-  function renderAll() { renderBoard(); renderPool(); renderShare(); renderCandList(); renderRanking(); renderAdmin(); }
+  function renderAll() { renderBoard(); renderPool(); renderShare(); renderCandList(); renderRanking(); renderOdds(); renderAdmin(); }
 
   /* ---------- Onglets & mode organisateur ---------- */
-  const TABS = () => GH.isAdmin ? ['pick', 'cands', 'rank', 'admin'] : ['pick', 'cands', 'rank'];
+  const TABS = () => GH.isAdmin ? ['pick', 'cands', 'odds', 'rank', 'admin'] : ['pick', 'cands', 'odds', 'rank'];
   function setTab(tab) {
     if (!TABS().includes(tab)) tab = 'pick';
     state.tab = tab;
     save(LS.tab, tab);
     document.querySelectorAll('.tabbar [role=tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
-    ['pick', 'cands', 'rank', 'admin'].forEach(t => { $('#tab-' + t).hidden = t !== tab; });
+    ['pick', 'cands', 'odds', 'rank', 'admin'].forEach(t => { $('#tab-' + t).hidden = t !== tab; });
     $('#actionbar').hidden = tab !== 'pick';
     document.body.dataset.tab = tab;
     window.scrollTo(0, 0);
@@ -1116,7 +1252,7 @@
 
   function applyAdminMode() {
     $('#tabAdmin').hidden = !GH.isAdmin;
-    $('.tabbar').classList.toggle('four', GH.isAdmin);
+    $('.tabbar').classList.toggle('five', GH.isAdmin);
     $('#adminLink').hidden = GH.isAdmin;
     if (!GH.isAdmin) $('#tab-admin').innerHTML = '';
     renderAll();
@@ -1243,6 +1379,7 @@
         if (GH.isAdmin && confirm(`Retirer ${t.dataset.name} du classement ?`)) removePlayer(t.dataset.name);
         break;
       case 'save-results': if (GH.isAdmin) saveResultsForm(); break;
+      case 'save-insta': if (GH.isAdmin) saveInsta(); break;
       case 'clear-results':
         if (GH.isAdmin && confirm('Effacer tous les résultats saisis ?')) saveResults({ top12: [], miss_france: null, dauphines: [null, null, null, null] });
         break;
@@ -1371,12 +1508,14 @@
   const loadShared = path => GH.isAdmin ? GH.readJSON(path).catch(() => getJSON(path)) : getJSON(path);
 
   async function reloadShared() {
-    const [players, res, cands] = await Promise.all([
+    const [players, res, cands, insta] = await Promise.all([
       loadShared('players.json').catch(() => null),
       loadShared('results.json').catch(() => null),
-      loadShared(CANDS_PATH).catch(() => null)
+      loadShared(CANDS_PATH).catch(() => null),
+      loadShared('data/instagram.json').catch(() => null)
     ]);
     let changed = false;
+    if (insta && JSON.stringify(insta) !== JSON.stringify(state.instagram)) { state.instagram = insta; changed = true; }
     const p = normPlayers(players);
     if (JSON.stringify(p) !== JSON.stringify(state.players)) { state.players = p; changed = true; }
     if (JSON.stringify(res) !== JSON.stringify(state.results)) { state.results = res; changed = true; }
@@ -1410,7 +1549,8 @@
     state.name = load(LS.name, '');
     try { localStorage.removeItem('mf27.players'); localStorage.removeItem('mf27.results'); } catch { /* ancienne version */ }
 
-    buildPickTab(); buildCandsTab(); buildRankTab();
+    { const w = Number(load(LS.oddsW, 0.5)); state.oddsW = w >= 0 && w <= 1 ? w : 0.5; }
+    buildPickTab(); buildCandsTab(); buildOddsTab(); buildRankTab();
     state.tab = load(LS.tab, 'pick');
     applyAdminMode();
     document.addEventListener('click', onClick, true);
@@ -1422,7 +1562,7 @@
     // Classement et résultats relus régulièrement (utile le soir de l'élection)
     setInterval(async () => {
       if (document.visibilityState !== 'visible' || drag) return;
-      if (await reloadShared()) { renderBoard(); renderPool(); renderShare(); renderCandList(); renderRanking(); if (state.tab !== 'admin') renderAdmin(); }
+      if (await reloadShared()) { renderBoard(); renderPool(); renderShare(); renderCandList(); renderRanking(); renderOdds(); if (state.tab !== 'admin') renderAdmin(); }
     }, 60e3);
     window.addEventListener('hashchange', handleHash);
     handleHash();

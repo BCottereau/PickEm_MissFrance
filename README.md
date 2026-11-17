@@ -32,6 +32,19 @@ Chaque modification est un commit dans le dépôt, visible par tous d'ici 1 à 2
 (le temps que GitHub Pages republie). Le site relit le classement et les résultats
 chaque minute.
 
+## Onglet « Favorites »
+
+Indice ludique par candidate (total 100 %) : un mélange, réglable par un curseur
+(50/50 par défaut), de la part du palmarès de sa région (titres + 1) et de la part de
+ses abonnés Instagram. Les abonnés viennent de `data/instagram.json`, qui garde
+l'historique des relevés ; l'onglet affiche la date du dernier relevé, l'évolution des
+abonnés et les places gagnées ou perdues depuis le relevé précédent.
+
+Un relevé tous les 3 jours, saisi par l'organisateur dans Admin → « Abonnés Instagram »
+(un badge signale quand il est dû). Il n'y a pas de relevé automatique : Instagram
+n'offre pas d'accès public à ces chiffres, et les récupérer en contournant ses règles
+n'est pas une option.
+
 ## Se connecter comme organisateur
 
 1. Créer un jeton sur https://github.com/settings/personal-access-tokens/new
