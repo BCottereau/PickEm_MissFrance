@@ -66,7 +66,7 @@ les scores encore incertains sont suivis d'un « ? ».
 ├── js/github.js       écritures dans le dépôt (mode organisateur)
 ├── players.json       classement officiel : [{ name, code }]
 ├── results.json       résultats de l'élection
-├── photos/            portraits des candidates
+├── photos/            portrait, photo en pied et vignette de chaque candidate
 └── data/
     ├── candidates_2027.json
     ├── winners_1920_2026.json
@@ -83,6 +83,9 @@ D1 à D4, puis le reste), le même que dans son lien `#p=…&n=…`.
 page de TV Mag « Miss France 2027 : découvrez les photos officielles des 31 candidates »
 (16 novembre 2026). Chaque fiche renvoie vers le portrait TV Mag de la candidate.
 Historique des titres et placements : Wikipédia.
+Photos : portraits officiels Miss France 2027 (un portrait et une photo en pied par
+candidate). Dans `photos/` : `<région>.jpg` (portrait), `<région>-pied.jpg` et
+`<région>-mini.jpg` (vignette carrée centrée sur le visage).
 
 ## Données à vérifier
 

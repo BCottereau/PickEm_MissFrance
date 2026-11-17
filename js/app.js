@@ -84,7 +84,7 @@
 
   function avatar(c, size = 'm') {
     const hue = (c.id * 47) % 360;
-    const src = state.photoPreview[c.id] || c.photo_url;
+    const src = state.photoPreview[`${c.id}:portrait`] || c.photo_thumb || c.photo_url;
     const img = src ? `<img src="${esc(src)}" alt="" loading="lazy" onerror="this.remove()">` : '';
     return `<span class="av av-${size}" style="--h:${hue}">${esc(initials(c.name))}${img}</span>`;
   }
@@ -355,39 +355,58 @@
     } finally { URL.revokeObjectURL(url); }
   }
 
-  async function uploadPhoto(id, file) {
+  // Deux photos par candidate : le portrait (photo_url, + miniature photo_thumb) et la photo en pied (photo_full)
+  const PHOTO = {
+    portrait: { field: 'photo_url', label: 'Portrait', suffix: '' },
+    full: { field: 'photo_full', label: 'Photo en pied', suffix: '-pied' }
+  };
+  const photoSrc = (c, kind = 'portrait') => state.photoPreview[`${c.id}:${kind}`] || c[PHOTO[kind].field];
+  const isRepoPhoto = p => typeof p === 'string' && /^photos\//.test(p);
+
+  async function uploadPhoto(id, file, kind = 'portrait') {
     const c = cand(id);
+    const { field, label, suffix } = PHOTO[kind];
     let img;
-    try { img = await fileToJpeg(file); } catch (e) { toast(e.message, 4000); return; }
-    const path = `photos/${slugify(c.region)}-${Date.now().toString(36)}.jpg`;
-    const old = c.photo_url;
-    state.photoPreview[id] = img.dataUrl;
+    try { img = await fileToJpeg(file, kind === 'full' ? 1100 : 900); } catch (e) { toast(e.message, 4000); return; }
+    const path = `photos/${slugify(c.region_en)}${suffix}-${Date.now().toString(36)}.jpg`;
+    const old = c[field];
+    const oldThumb = kind === 'portrait' ? c.photo_thumb : null;
+    const key = `${id}:${kind}`;
+    state.photoPreview[key] = img.dataUrl;
     refreshPhotos(id);
     try {
-      await adminWrite(`Photo de Miss ${c.region}`, async () => {
-        await GH.putBinary(path, img.b64, `Photo : Miss ${c.region}`);
-        await GH.updateJSON(CANDS_PATH, cur => cur.map(x => x.id === id ? { ...x, photo_url: path } : x), `Photo : Miss ${c.region} (fiche)`);
-        if (old && /^photos\//.test(old)) await GH.deleteFile(old, `Photo : retire l’ancienne de Miss ${c.region}`).catch(() => {});
+      await adminWrite(`${label} de Miss ${c.region}`, async () => {
+        await GH.putBinary(path, img.b64, `${label} : Miss ${c.region}`);
+        // un nouveau portrait remplace aussi la miniature (l'app recadre alors le portrait)
+        const patch = kind === 'portrait' ? { photo_url: path, photo_thumb: null } : { [field]: path };
+        await GH.updateJSON(CANDS_PATH, cur => cur.map(x => x.id === id ? { ...x, ...patch } : x), `${label} : Miss ${c.region} (fiche)`);
+        for (const f of [old, oldThumb]) if (isRepoPhoto(f)) await GH.deleteFile(f, `${label} : retire l’ancienne de Miss ${c.region}`).catch(() => {});
       });
-      c.photo_url = path;
+      c[field] = path;
+      if (kind === 'portrait') c.photo_thumb = null;
     } catch {
-      delete state.photoPreview[id];
+      delete state.photoPreview[key];
     }
     refreshPhotos(id);
   }
 
-  async function removePhoto(id) {
+  async function removePhoto(id, kind = 'portrait') {
     const c = cand(id);
-    const old = c.photo_url;
-    if (!old && !state.photoPreview[id]) return;
-    if (!confirm(`Retirer la photo de Miss ${c.region} ?`)) return;
+    const { field, label } = PHOTO[kind];
+    const key = `${id}:${kind}`;
+    const old = c[field];
+    const oldThumb = kind === 'portrait' ? c.photo_thumb : null;
+    if (!old && !state.photoPreview[key]) return;
+    if (!confirm(`Retirer : ${label.toLowerCase()} de Miss ${c.region} ?`)) return;
     try {
-      await adminWrite(`Photo de Miss ${c.region}`, async () => {
-        await GH.updateJSON(CANDS_PATH, cur => cur.map(x => x.id === id ? { ...x, photo_url: null } : x), `Photo : retire Miss ${c.region}`);
-        if (old && /^photos\//.test(old)) await GH.deleteFile(old, `Photo : supprime Miss ${c.region}`).catch(() => {});
+      await adminWrite(`${label} de Miss ${c.region}`, async () => {
+        const patch = kind === 'portrait' ? { photo_url: null, photo_thumb: null } : { [field]: null };
+        await GH.updateJSON(CANDS_PATH, cur => cur.map(x => x.id === id ? { ...x, ...patch } : x), `${label} : retire Miss ${c.region}`);
+        for (const f of [old, oldThumb]) if (isRepoPhoto(f)) await GH.deleteFile(f, `${label} : supprime Miss ${c.region}`).catch(() => {});
       });
-      c.photo_url = null;
-      delete state.photoPreview[id];
+      c[field] = null;
+      if (kind === 'portrait') c.photo_thumb = null;
+      delete state.photoPreview[key];
     } catch { /* message déjà affiché */ }
     refreshPhotos(id);
   }
@@ -647,7 +666,7 @@
   const instaHandle = c => String(c.instagram || '').trim().replace(/^@/, '').replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/\/.*$/, '');
   const instaUrl = c => `https://www.instagram.com/${encodeURIComponent(instaHandle(c))}/`;
 
-  const photoOf = c => state.photoPreview[c.id] || c.photo_url;
+  const photoOf = c => photoSrc(c, 'portrait');
 
   function openFiche(id) {
     const c = cand(id);
@@ -658,14 +677,18 @@
     const recent = recentFor(c);
     const s = slotOf(id);
     const photo = photoOf(c);
+    const shots = [['portrait', 'Portrait'], ['full', 'En pied']].map(([k, l]) => [photoSrc(c, k), l]).filter(([src]) => src);
     const sheet = $('#sheet');
     sheet.dataset.cid = String(id);
     sheet.innerHTML = `
       <div class="sheet-inner">
         <button class="sheet-close" data-action="close-sheet" aria-label="Fermer">${ICON.x}</button>
-        ${photo ? `<div class="fiche-photo"><img src="${esc(photo)}" alt="Portrait de ${esc(c.name)}" onerror="this.parentNode.remove()"></div>` : ''}
+        ${shots.length ? `<div class="fiche-photo">
+            <div class="gallery" tabindex="0" aria-label="Photos officielles de ${esc(c.name)}">${shots.map(([src, l], i) => `<figure class="${i ? 'whole' : ''}" style="--bg:url('${esc(new URL(src, location.href).href)}')"><img src="${esc(src)}" alt="${esc(c.name)}, ${l.toLowerCase()}" loading="lazy" onerror="this.parentNode.remove()"></figure>`).join('')}</div>
+            ${shots.length > 1 ? `<div class="gallery-dots">${shots.map(([, l], i) => `<button data-action="gallery" data-i="${i}" aria-label="${l}" class="${i ? '' : 'on'}"></button>`).join('')}</div>` : ''}
+          </div>` : ''}
         <div class="fiche-head">
-          ${photo ? '' : avatar(c, 'xl')}
+          ${shots.length ? '' : avatar(c, 'xl')}
           <div>
             <p class="eyebrow">Miss ${esc(c.region)}</p>
             <h2 id="sheet-title">${esc(c.name)}</h2>
@@ -674,8 +697,10 @@
         </div>
         ${GH.isAdmin ? `<div class="row-actions admin-row">
             <button class="btn small" data-action="edit-cand" data-cid="${id}">${ICON.pencil}Modifier la fiche</button>
-            ${photoInput(id, photo ? 'Changer la photo' : 'Ajouter une photo')}
-            ${photo ? `<button class="btn ghost small" data-action="photo-remove" data-cid="${id}">${ICON.trash}Retirer</button>` : ''}
+            ${photoInput(id, photo ? 'Changer le portrait' : 'Ajouter un portrait')}
+            ${photo ? `<button class="btn ghost small" data-action="photo-remove" data-cid="${id}" aria-label="Retirer le portrait">${ICON.trash}</button>` : ''}
+            ${photoInput(id, photoSrc(c, 'full') ? 'Changer la photo en pied' : 'Ajouter une photo en pied', 'full')}
+            ${photoSrc(c, 'full') ? `<button class="btn ghost small" data-action="photo-remove" data-kind="full" data-cid="${id}" aria-label="Retirer la photo en pied">${ICON.trash}</button>` : ''}
           </div>` : ''}
         <div class="stats">
           <div><span>Âge</span><b>${c.age} ans</b></div>
@@ -699,10 +724,21 @@
         </div>
       </div>`;
     showSheet();
+    bindGallery();
   }
 
-  const photoInput = (id, label) => `<label class="btn small file-btn">${ICON.camera}${label}<input type="file" accept="image/*" data-photo="${id}" hidden></label>`;
+  const photoInput = (id, label, kind = 'portrait') => `<label class="btn small file-btn">${ICON.camera}${label}<input type="file" accept="image/*" data-photo="${id}" data-kind="${kind}" hidden></label>`;
 
+
+  function bindGallery() {
+    const g = $('#sheet .gallery');
+    if (!g) return;
+    const dots = [...document.querySelectorAll('#sheet .gallery-dots button')];
+    g.addEventListener('scroll', () => {
+      const i = Math.round(g.scrollLeft / g.clientWidth);
+      dots.forEach((d, k) => d.classList.toggle('on', k === i));
+    }, { passive: true });
+  }
 
   function showSheet() {
     const sheet = $('#sheet');
@@ -812,7 +848,7 @@
   function renderAdmin() {
     const el = $('#tab-admin');
     if (!el || !GH.isAdmin) return;
-    const withPhoto = state.cands.filter(c => photoOf(c)).length;
+    const withPhoto = state.cands.filter(c => photoOf(c) && photoSrc(c, 'full')).length;
     el.innerHTML = `
       <div class="status final">${ICON.crown}<div>
         <b>Mode organisateur</b>
@@ -836,15 +872,15 @@
       </details>
 
       <div class="card-block">
-        <h3>Photos (${withPhoto}/31)</h3>
-        <p class="muted">Choisissez une image par candidate : elle est redimensionnée automatiquement avant envoi.</p>
+        <h3>Photos (${withPhoto}/31 complètes)</h3>
+        <p class="muted">Deux photos par candidate : le portrait (utilisé aussi pour les vignettes) et la photo en pied. Le bouton « Photos » ouvre la fiche pour les changer ; les images sont redimensionnées avant envoi.</p>
         <div class="photo-grid">${state.cands.map(c => `
           <div class="ptile">
             ${avatar(c, 'm')}
             <span class="ptile-txt"><b>${esc(c.region)}</b><small>${esc(c.name)}</small></span>
             <button class="btn ghost small icon-only" data-action="edit-cand" data-cid="${c.id}" aria-label="Modifier la fiche de ${esc(c.region)}">${ICON.pencil}</button>
-            ${photoInput(c.id, photoOf(c) ? 'Changer' : 'Ajouter')}
-            ${photoOf(c) ? `<button class="btn ghost small icon-only" data-action="photo-remove" data-cid="${c.id}" aria-label="Retirer la photo de ${esc(c.region)}">${ICON.trash}</button>` : ''}
+            <span class="ptile-count">${[photoOf(c), photoSrc(c, 'full')].filter(Boolean).length}/2</span>
+            <button class="btn small" data-action="info" data-cid="${c.id}">${ICON.camera}Photos</button>
           </div>`).join('')}</div>
       </div>`;
     $('#resEditor').addEventListener('toggle', e => { resEditorOpen = e.target.open; if (e.target.open) renderResForm(); });
@@ -1035,7 +1071,12 @@
       case 'clear-results':
         if (GH.isAdmin && confirm('Effacer tous les résultats saisis ?')) saveResults({ top12: [], miss_france: null, dauphines: [null, null, null, null] });
         break;
-      case 'photo-remove': if (GH.isAdmin) removePhoto(cid); break;
+      case 'photo-remove': if (GH.isAdmin) removePhoto(cid, t.dataset.kind === 'full' ? 'full' : 'portrait'); break;
+      case 'gallery': {
+        const g = t.closest('.fiche-photo').querySelector('.gallery');
+        g.scrollTo({ left: g.clientWidth * +t.dataset.i, behavior: 'smooth' });
+        break;
+      }
       case 'edit-cand': if (GH.isAdmin) openEditor(cid); break;
       case 'save-cand': if (GH.isAdmin) saveEditor(cid); break;
     }
@@ -1044,7 +1085,7 @@
   function onChange(e) {
     const input = e.target.closest('input[type=file][data-photo]');
     if (!input || !GH.isAdmin || !input.files || !input.files[0]) return;
-    uploadPhoto(+input.dataset.photo, input.files[0]);
+    uploadPhoto(+input.dataset.photo, input.files[0], input.dataset.kind === 'full' ? 'full' : 'portrait');
     input.value = '';
   }
 
