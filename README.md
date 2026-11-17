@@ -77,9 +77,17 @@ les scores encore incertains sont suivis d'un « ? ».
 Le `code` d'un joueur est son Top 12 encodé (12 caractères, un par candidate : Miss,
 D1 à D4, puis le reste), le même que dans son lien `#p=…&n=…`.
 
+## Sources
+
+Âge, taille, études ou métier, date et lieu d'élection régionale, compte Instagram :
+page de TV Mag « Miss France 2027 : découvrez les photos officielles des 31 candidates »
+(16 novembre 2026). Chaque fiche renvoie vers le portrait TV Mag de la candidate.
+Historique des titres et placements : Wikipédia.
+
 ## Données à vérifier
 
-- Mandy Goudal (37 ou 38 ans) et Juliette Gauthier (22 ou 23 ans) : les sources divergent.
+- Mandy Goudal (38 ans) et Juliette Gauthier (23 ans) : âges confirmés par TV Mag.
+- Ville : non fournie par TV Mag, reprise des données d'origine (Wikipédia).
 - Languedoc : 3 titres = Languedoc-Roussillon 1929 et 1971 + Languedoc 2006
   (la fiche le précise). Tahiti reprend l'historique de la Polynésie française.
 

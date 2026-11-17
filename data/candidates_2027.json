@@ -7,10 +7,13 @@
   "age": 24,
   "height_m": 1.76,
   "hometown": "Rantzwiller",
+  "occupation": "Études validées en management et marketing pour reprendre l’entreprise familiale en automobile",
+  "elected": "Élue le 14 juin à Kirrwiller",
+  "instagram": "chiarablazevic.off",
   "past_titles": 6,
   "last_title_year": 2012,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-elue-miss-alsace-qui-est-chiara-blazevic-20260615"
  },
  {
   "id": 2,
@@ -20,10 +23,13 @@
   "age": 22,
   "height_m": 1.73,
   "hometown": "Mérignac",
+  "occupation": "Études validées en Bachelor stylisme mode et luxe",
+  "elected": "Élue le 15 mai à Bordeaux",
+  "instagram": "solene.videau",
   "past_titles": 7,
   "last_title_year": 1995,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-apres-trois-tentatives-solene-videau-remporte-le-titre-de-miss-aquitaine-2026-20260516"
  },
  {
   "id": 3,
@@ -33,10 +39,13 @@
   "age": 24,
   "height_m": 1.73,
   "hometown": "Commentry",
+  "occupation": "Études validées en Master 2 en école de commerce avec une alternance en tant qu’ingénieure commerciale dans le secteur de l’énergie",
+  "elected": "Élue le 18 septembre à Vichy",
+  "instagram": "linaberthelier",
   "past_titles": 0,
   "last_title_year": null,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-lina-berthelier-elue-miss-auvergne-veut-reveiller-les-volcans-20260919"
  },
  {
   "id": 4,
@@ -46,10 +55,13 @@
   "age": 20,
   "height_m": 1.71,
   "hometown": "Guipavas",
+  "occupation": "Étudiante en troisième année de droit pour devenir juge des enfants",
+  "elected": "Élue le 25 septembre à Brest",
+  "instagram": "margot.ferrebernard",
   "past_titles": 6,
   "last_title_year": 2011,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-margot-ferre-bernard-elue-miss-bretagne-2026-veut-devenir-juge-pour-enfants-20260927"
  },
  {
   "id": 5,
@@ -59,10 +71,13 @@
   "age": 23,
   "height_m": 1.76,
   "hometown": "La Fermeté",
+  "occupation": "Infirmière en soins psychiatriques",
+  "elected": "Élue le 31 mai à Autun",
+  "instagram": "ilonaperrot.off",
   "past_titles": 3,
   "last_title_year": 2013,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-l-infirmiere-en-psychiatrie-ilona-perrot-elue-miss-bourgogne-20260601"
  },
  {
   "id": 6,
@@ -72,23 +87,29 @@
   "age": 26,
   "height_m": 1.76,
   "hometown": "Dammarie",
+  "occupation": "Responsable marketing dans la restauration rapide",
+  "elected": "Élue le 26 avril à Dreux",
+  "instagram": "justinebourrelier.off",
   "past_titles": 1,
   "last_title_year": 2014,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/tatouee-amoureuse-justine-bourrelier-la-premiere-candidate-a-miss-france-2027-casse-deja-les-codes-20260427"
  },
  {
   "id": 7,
   "region": "Champagne-Ardenne",
   "region_en": "Champagne-Ardenne",
   "name": "Céline Leduc",
-  "age": 23,
+  "age": 24,
   "height_m": 1.83,
   "hometown": "Tagnon",
+  "occupation": "Diplômée d’un Master métiers de l’enseignement, de l’éducation et de la formation",
+  "elected": "Élue le 27 septembre à Reims",
+  "instagram": "celineleducoff",
   "past_titles": 0,
   "last_title_year": null,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-qui-est-celine-leduc-miss-champagne-ardenne-2026-20260927"
  },
  {
   "id": 8,
@@ -98,10 +119,13 @@
   "age": 20,
   "height_m": 1.76,
   "hometown": "Grosseto-Prugna",
+  "occupation": "Hôtesse de l’air",
+  "elected": "Élue le 23 juillet à Porticcio",
+  "instagram": "satinenomary",
   "past_titles": 1,
   "last_title_year": 1921,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-l-hotesse-de-l-air-satine-nomary-elue-miss-corse-20260724"
  },
  {
   "id": 9,
@@ -111,10 +135,13 @@
   "age": 19,
   "height_m": 1.74,
   "hometown": "Cagnes-sur-Mer",
+  "occupation": "Étudiante en deuxième année d’école de commerce",
+  "elected": "Élue le 26 juillet à Fréjus",
+  "instagram": "may_haoues",
   "past_titles": 6,
   "last_title_year": 1982,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-may-haoues-elue-miss-cote-d-azur-s-engage-pour-la-cause-animale-20260727"
  },
  {
   "id": 10,
@@ -122,12 +149,15 @@
   "region_en": "Franche-Comté",
   "name": "Emma Ninot",
   "age": 21,
-  "height_m": 1.75,
+  "height_m": 1.73,
   "hometown": "Laire",
+  "occupation": "Infirmière et sauveteuse en mer",
+  "elected": "Élue le 11 septembre à Port-sur-Saône",
+  "instagram": "emmaninot.off",
   "past_titles": 2,
   "last_title_year": 1927,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-sauveteuse-en-mer-et-future-medecin-emma-ninot-remporte-l-echarpe-de-miss-franche-comte-20260912"
  },
  {
   "id": 11,
@@ -137,23 +167,29 @@
   "age": 23,
   "height_m": 1.77,
   "hometown": "Kourou",
+  "occupation": "Infirmière coordinatrice dans la petite enfance",
+  "elected": "Élue le 11 juillet à Matoury",
+  "instagram": "sandrajustineoff",
   "past_titles": 1,
   "last_title_year": 2017,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-dix-ans-apres-alicia-aylies-sandra-justine-elue-miss-guyane-2026-20260715"
  },
  {
   "id": 12,
   "region": "Guadeloupe",
   "region_en": "Guadeloupe",
   "name": "Julia Désirée",
-  "age": 20,
+  "age": 21,
   "height_m": 1.81,
   "hometown": "Les Abymes",
+  "occupation": "Conseillère en parfumerie et en cosmétiques",
+  "elected": "Élue le 16 juillet au Gosier",
+  "instagram": "_juliadesiree_",
   "past_titles": 4,
   "last_title_year": 2023,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2026-julia-desiree-elue-miss-guadeloupe-s-engage-contre-les-violences-faites-aux-femmes-20260717"
  },
  {
   "id": 13,
@@ -163,10 +199,13 @@
   "age": 24,
   "height_m": 1.81,
   "hometown": "Clichy",
+  "occupation": "Étudiante en école de journalisme pour devenir journaliste sportif spécialisée tennis",
+  "elected": "Élue le 20 septembre à Dammarie-les-Lys",
+  "instagram": "camillaalash",
   "past_titles": 16,
   "last_title_year": 2022,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-des-defiles-en-lingerie-pour-etam-a-miss-ile-de-france-2026-qui-est-camilla-alash-20260921"
  },
  {
   "id": 14,
@@ -176,23 +215,29 @@
   "age": 29,
   "height_m": 1.77,
   "hometown": "Mende",
+  "occupation": "Consultante dans un cabinet de conseil en organisation",
+  "elected": "Élue le 7 août à Beaucaire",
+  "instagram": "candice.gauch",
   "past_titles": 3,
   "last_title_year": 2006,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-candice-gauch-elue-miss-languedoc-2026-le-jour-de-son-anniversaire-20260810"
  },
  {
   "id": 15,
   "region": "Limousin",
   "region_en": "Limousin",
   "name": "Élise Escuriol",
-  "age": 22,
+  "age": 23,
   "height_m": 1.74,
   "hometown": "Brive-la-Gaillarde",
+  "occupation": "Études validées en Licence de gestion des entreprises et des administrations",
+  "elected": "Élue le 6 septembre à Aubusson",
+  "instagram": "elise_.escuriol",
   "past_titles": 0,
   "last_title_year": null,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-qui-est-elise-escuriol-la-nouvelle-miss-limousin-20260907"
  },
  {
   "id": 16,
@@ -202,23 +247,29 @@
   "age": 21,
   "height_m": 1.72,
   "hometown": "Gondreville",
+  "occupation": "Étudiante en deuxième année de BTS de commerce",
+  "elected": "Élue le 12 septembre à Amnéville",
+  "instagram": "leanefromentoff",
   "past_titles": 3,
   "last_title_year": 1998,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-leane-froment-passionnee-d-equitation-decroche-la-couronne-de-miss-lorraine-2026-20260913"
  },
  {
   "id": 17,
   "region": "Martinique",
   "region_en": "Martinique",
-  "name": "Maureen-Alycia Lucea-Merlin",
+  "name": "Maureen-Alycia Lucéa-Merlin",
   "age": 24,
   "height_m": 1.76,
   "hometown": "Fort-de-France",
+  "occupation": "Responsable hébergement en Ehpad",
+  "elected": "Élue le 13 juin à Fort-de-France",
+  "instagram": "maureenalycialm_off",
   "past_titles": 1,
   "last_title_year": 2025,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-maureen-alycia-lucea-merlin-va-representer-la-martinique-20260615"
  },
  {
   "id": 18,
@@ -228,10 +279,13 @@
   "age": 24,
   "height_m": 1.76,
   "hometown": "Mamoudzou",
+  "occupation": "Diplômée d’une Licence en lettres modernes pour devenir professeur des écoles",
+  "elected": "Élue le 29 août à Petite-Terre",
+  "instagram": "emma.saidissouf",
   "past_titles": 0,
   "last_title_year": null,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-emma-said-issouf-future-professeur-des-ecoles-elue-miss-mayotte-20260901"
  },
  {
   "id": 19,
@@ -241,10 +295,13 @@
   "age": 23,
   "height_m": 1.74,
   "hometown": "Toulouse",
+  "occupation": "Diplômée d’une Licence en management sportif et future gendarme",
+  "elected": "Élue le 5 septembre à Villemur-sur-Tarn",
+  "instagram": "carlarachailoff",
   "past_titles": 1,
   "last_title_year": 2009,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-carla-rachail-ancienne-joueuse-de-rugby-au-stade-toulousain-elue-miss-midi-pyrenees-20260907"
  },
  {
   "id": 20,
@@ -254,23 +311,29 @@
   "age": 18,
   "height_m": 1.75,
   "hometown": "Le Mont-Dore",
+  "occupation": "Étudiante et animatrice radio",
+  "elected": "Élue le 25 juillet à Nouméa",
+  "instagram": "lana_prost_",
   "past_titles": 1,
   "last_title_year": 1978,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-lana-prost-elue-miss-nouvelle-caledonie-a-seulement-17-ans-20260727"
  },
  {
   "id": 21,
   "region": "Nord-Pas-de-Calais",
   "region_en": "Nord-Pas-de-Calais",
-  "name": "Shana Mendes",
+  "name": "Shana Mendès",
   "age": 18,
   "height_m": 1.75,
   "hometown": "Hem",
+  "occupation": "Étudiante en Licence langues étrangères appliquées",
+  "elected": "Élue le 26 septembre à Liévin",
+  "instagram": "shanamendesoff",
   "past_titles": 4,
   "last_title_year": 2024,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-shana-mendes-future-dentiste-au-portugal-elue-miss-nord-pas-de-calais-2026-20260927"
  },
  {
   "id": 22,
@@ -280,10 +343,13 @@
   "age": 22,
   "height_m": 1.71,
   "hometown": "Giberville",
+  "occupation": "Comptable",
+  "elected": "Élue le 22 mai à Caen",
+  "instagram": "paulinegourlez",
   "past_titles": 7,
   "last_title_year": 2021,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-qui-est-pauline-gourlez-la-nouvelle-miss-normandie-20260523"
  },
  {
   "id": 23,
@@ -293,10 +359,13 @@
   "age": 23,
   "height_m": 1.72,
   "hometown": "Les Sorinières",
+  "occupation": "Éducatrice scolaire et accompagnante d’élèves en situation de handicap",
+  "elected": "Élue le 11 septembre à Vallet",
+  "instagram": "maellehamonoff",
   "past_titles": 3,
   "last_title_year": 1994,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-maelle-hamon-d-une-couronne-volee-en-2022-au-titre-de-miss-pays-de-la-loire-2026-20260911"
  },
  {
   "id": 24,
@@ -306,10 +375,13 @@
   "age": 26,
   "height_m": 1.73,
   "hometown": "Amiens",
+  "occupation": "Étudiante en Master 2 de communication",
+  "elected": "Élue le 13 septembre à Beauvais",
+  "instagram": "marievillezoff",
   "past_titles": 4,
   "last_title_year": 2007,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/je-pensais-que-j-allais-faire-un-malaise-qui-est-marie-villez-elue-miss-picardie-2026-pour-miss-france-2027-20260914"
  },
  {
   "id": 25,
@@ -319,10 +391,13 @@
   "age": 38,
   "height_m": 1.74,
   "hometown": "Saintes",
+  "occupation": "Responsable d’une boutique de robes de mariée",
+  "elected": "Élue le 4 septembre au Futuroscope",
+  "instagram": "mandygoudal",
   "past_titles": 3,
   "last_title_year": 1977,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-mandy-goudal-37-ans-elue-miss-poitou-charentes-20260905"
  },
  {
   "id": 26,
@@ -332,10 +407,13 @@
   "age": 28,
   "height_m": 1.71,
   "hometown": "Velleron",
+  "occupation": "Kinésithérapeute spécialisée dans la santé de la femme",
+  "elected": "Élue le 24 juillet à Saint-Raphaël",
+  "instagram": "ophelievitalbo",
   "past_titles": 1,
   "last_title_year": 1979,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-la-kinesitherapeute-ophelie-vitalbo-remporte-l-echarpe-de-miss-provence-20260727"
  },
  {
   "id": 27,
@@ -345,10 +423,13 @@
   "age": 21,
   "height_m": 1.72,
   "hometown": "Saint-Benoît",
+  "occupation": "Étudiante en pharmacie",
+  "elected": "Élue le 22 août à Saint-Denis",
+  "instagram": "laetitiaroguet_",
   "past_titles": 2,
   "last_title_year": 2008,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-laetitia-roguet-une-miss-reunion-en-quete-de-confiance-20260824"
  },
  {
   "id": 28,
@@ -358,10 +439,13 @@
   "age": 23,
   "height_m": 1.74,
   "hometown": "Lyon",
+  "occupation": "Diplômée d’un Master en marketing et chargée de projets dans un laboratoire pharmaceutique",
+  "elected": "Élue le 19 septembre à Villefranche-sur-Saône",
+  "instagram": "julia_grid.costantino",
   "past_titles": 7,
   "last_title_year": 2002,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/c-est-la-plus-belle-decision-de-ma-vie-julia-grid-costantino-representera-le-rhone-alpes-a-miss-france-2027-20260920"
  },
  {
   "id": 29,
@@ -371,23 +455,29 @@
   "age": 23,
   "height_m": 1.74,
   "hometown": "Le Boulou",
+  "occupation": "Kinésithérapeute",
+  "elected": "Élue le 5 juillet au Canet-en-Roussillon",
+  "instagram": "juliettegauthier___",
   "past_titles": 1,
   "last_title_year": 1938,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-juliette-gauthier-elue-miss-roussillon-apres-avoir-ete-en-fauteuil-roulant-pendant-des-mois-20260707"
  },
  {
   "id": 30,
-  "region": "Saint Barthélemy",
+  "region": "Saint-Martin / Saint-Barthélemy",
   "region_en": "Saint Barthélemy",
   "name": "Naïla Parotte",
   "age": 22,
   "height_m": 1.82,
   "hometown": "Marigot",
+  "occupation": "Gestionnaire en automobile",
+  "elected": "Élue le 1er août à Saint-Martin",
+  "instagram": "naila.parotte_officiel",
   "past_titles": 0,
   "last_title_year": null,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-qui-est-naila-parotte-la-nouvelle-miss-saint-martin-saint-barthelemy-20260803"
  },
  {
   "id": 31,
@@ -397,9 +487,12 @@
   "age": 22,
   "height_m": 1.72,
   "hometown": "Arue",
+  "occupation": "Professeur de danse tahitienne",
+  "elected": "Élue le 26 juin à Pirae",
+  "instagram": "leiadiard_off",
   "past_titles": 6,
   "last_title_year": 2026,
   "photo_url": null,
-  "instagram": null
+  "source_url": "http://tvmag.lefigaro.fr/programme-tv/miss-france/miss-france-2027-qui-est-leia-diard-la-nouvelle-miss-tahiti-qui-succede-a-hinaupoko-deveze-20260627"
  }
 ]

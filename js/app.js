@@ -31,6 +31,9 @@
     search: svg('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'),
     plus: svg('<path d="M5 12h14"/><path d="M12 5v14"/>'),
     camera: svg('<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>'),
+    insta: svg('<rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>'),
+    study: svg('<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>'),
+    link: svg('<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3"/>'),
     pencil: svg('<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>')
   };
 
@@ -396,6 +399,7 @@
     { key: 'age', label: 'Âge', type: 'number' },
     { key: 'height_m', label: 'Taille (m)', type: 'text' },
     { key: 'hometown', label: 'Ville', type: 'text' },
+    { key: 'occupation', label: 'Études / métier', type: 'text' },
     { key: 'instagram', label: 'Instagram (pseudo, facultatif)', type: 'text' }
   ];
 
@@ -434,7 +438,8 @@
     if (!(h >= 1.4 && h <= 2.1)) return err('Taille invalide (ex. 1,75)');
     patch.age = age;
     patch.height_m = Math.round(h * 100) / 100;
-    patch.instagram = val('instagram').replace(/^@/, '') || null;
+    patch.instagram = instaHandle({ instagram: val('instagram') }) || null;
+    patch.occupation = val('occupation') || null;
     const btn = $('[data-action="save-cand"]');
     btn.disabled = true;
     try {
@@ -619,7 +624,7 @@
       name: (a, b) => a.name.localeCompare(b.name, 'fr')
     };
     const list = state.cands
-      .filter(c => !q || norm([c.region, c.region_en, c.name, c.hometown].join(' ')).includes(q))
+      .filter(c => !q || norm([c.region, c.region_en, c.name, c.hometown, c.occupation].join(' ')).includes(q))
       .sort(sorters[state.sort]);
     if (!list.length) { el.innerHTML = '<p class="empty-msg">Aucune candidate ne correspond.</p>'; return; }
     el.innerHTML = list.map(c => {
@@ -630,6 +635,7 @@
             <span class="ccard-top"><span class="ccard-region">${esc(c.region)}</span>${s >= 0 ? `<span class="badge ${s === 0 ? 'gold' : ''}">${SHORT[s]}</span>` : ''}</span>
             <span class="ccard-name">${esc(c.name)}</span>
             <span class="ccard-meta">${c.age} ans · ${heightTxt(c.height_m)} · ${esc(c.hometown)}</span>
+            ${c.occupation ? `<span class="ccard-occ">${esc(c.occupation)}</span>` : ''}
             <span class="ccard-titles">${c.past_titles ? `${ICON.crown}${c.past_titles} titre${c.past_titles > 1 ? 's' : ''} · dernier en ${c.last_title_year}` : '<i>Jamais titrée</i>'}</span>
           </span>
         </button>`;
@@ -638,6 +644,9 @@
 
 
   /* ---------- Fiche candidate ---------- */
+  const instaHandle = c => String(c.instagram || '').trim().replace(/^@/, '').replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/\/.*$/, '');
+  const instaUrl = c => `https://www.instagram.com/${encodeURIComponent(instaHandle(c))}/`;
+
   const photoOf = c => state.photoPreview[c.id] || c.photo_url;
 
   function openFiche(id) {
@@ -660,7 +669,7 @@
           <div>
             <p class="eyebrow">Miss ${esc(c.region)}</p>
             <h2 id="sheet-title">${esc(c.name)}</h2>
-            ${c.instagram ? `<a class="insta" href="https://instagram.com/${esc(String(c.instagram).replace(/^@/, ''))}" target="_blank" rel="noopener">@${esc(String(c.instagram).replace(/^@/, ''))}</a>` : ''}
+            ${instaHandle(c) ? `<a class="insta" href="${esc(instaUrl(c))}" target="_blank" rel="noopener">${ICON.insta}@${esc(instaHandle(c))}</a>` : ''}
           </div>
         </div>
         ${GH.isAdmin ? `<div class="row-actions admin-row">
@@ -673,6 +682,8 @@
           <div><span>Taille</span><b>${heightTxt(c.height_m)}</b></div>
           <div><span>Ville</span><b>${esc(c.hometown)}</b></div>
         </div>
+        ${c.occupation ? `<div class="occ">${ICON.study}<div><span>Études / métier</span><p>${esc(c.occupation)}</p></div></div>` : ''}
+        ${c.elected ? `<p class="muted small elected">${ICON.crown}${esc(c.elected)}${c.source_url ? ` · <a href="${esc(c.source_url)}" target="_blank" rel="noopener">portrait sur TV Mag ${ICON.link}</a>` : ''}</p>` : ''}
         <h3>Palmarès de la région</h3>
         ${c.past_titles ? `
           <p class="big-line"><b>${c.past_titles}</b> titre${c.past_titles > 1 ? 's' : ''} de Miss France${repl ? ` <small>(dont ${repl} par remplacement)</small>` : ''}</p>
