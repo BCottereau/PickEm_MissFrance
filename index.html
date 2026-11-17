@@ -27,23 +27,27 @@
     <button role="tab" data-action="tab" data-tab="pick" aria-selected="true">Mon pronostic</button>
     <button role="tab" data-action="tab" data-tab="cands" aria-selected="false">Candidates</button>
     <button role="tab" data-action="tab" data-tab="rank" aria-selected="false">Classement</button>
+    <button role="tab" data-action="tab" data-tab="admin" aria-selected="false" id="tabAdmin" hidden>Admin</button>
   </nav>
 
   <main>
     <section id="tab-pick" class="tab" role="tabpanel"></section>
     <section id="tab-cands" class="tab" role="tabpanel" hidden></section>
     <section id="tab-rank" class="tab" role="tabpanel" hidden></section>
+    <section id="tab-admin" class="tab" role="tabpanel" hidden></section>
   </main>
 
   <footer class="foot">
     Arena Futuroscope · présentée par Jean-Pierre Foucault · 31 candidates, Top 12 en finale.<br>
-    App privée, sans serveur : vos pronostics restent dans votre navigateur et dans les liens que vous partagez.
+    Votre pronostic reste dans votre navigateur ; l’organisateur l’ajoute au classement à partir de votre lien.<br>
+    <button class="link-btn" id="adminLink" data-action="admin-login">Espace organisateur</button>
   </footer>
 
   <dialog id="sheet" aria-labelledby="sheet-title"></dialog>
   <div id="toast" role="status" aria-live="polite"></div>
   <div id="ghost" aria-hidden="true"></div>
 
+  <script src="js/github.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

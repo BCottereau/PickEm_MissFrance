@@ -9,7 +9,7 @@
   const RANKS = ['Miss France', '1re dauphine', '2e dauphine', '3e dauphine', '4e dauphine'];
   const rankLow = i => i === 0 ? 'Miss France' : RANKS[i];
   const B32 = '0123456789abcdefghijklmnopqrstuv';
-  const LS = { picks: 'mf27.picks', name: 'mf27.name', players: 'mf27.players', results: 'mf27.results', tab: 'mf27.tab' };
+  const LS = { picks: 'mf27.picks', name: 'mf27.name', tab: 'mf27.tab' };
   // Noms de régions utilisés dans les données historiques (en anglais) pour chaque candidate
   const REGION_KEYS = { Tahiti: ['French Polynesia', 'Tahiti'], Languedoc: ['Languedoc', 'Languedoc-Roussillon'] };
   const FR = {
@@ -29,16 +29,18 @@
     trash: svg('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>'),
     trophy: svg('<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>'),
     search: svg('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'),
-    plus: svg('<path d="M5 12h14"/><path d="M12 5v14"/>')
+    plus: svg('<path d="M5 12h14"/><path d="M12 5v14"/>'),
+    camera: svg('<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>')
   };
+
 
   /* ---------- État ---------- */
   const state = {
     cands: [], byId: new Map(), winners: [], replacements: [], recent: {},
-    fileResults: null, localResults: null,
-    picks: Array(12).fill(null), name: '', players: [],
-    selected: null, tab: 'pick', sort: 'region', query: ''
+    results: null, players: [], photoPreview: {},
+    picks: Array(12).fill(null), name: '', selected: null, tab: 'pick', sort: 'region', query: ''
   };
+
 
   /* ---------- Utilitaires ---------- */
   const $ = (s, r = document) => r.querySelector(s);
@@ -58,12 +60,12 @@
   }
 
   let toastTimer;
-  function toast(msg) {
+  function toast(msg, ms = 2400) {
     const t = $('#toast');
     t.textContent = msg;
     t.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+    toastTimer = setTimeout(() => t.classList.remove('show'), ms);
   }
 
   async function copyText(text, okMsg = 'Lien copié') {
@@ -78,7 +80,8 @@
 
   function avatar(c, size = 'm') {
     const hue = (c.id * 47) % 360;
-    const img = c.photo_url ? `<img src="${esc(c.photo_url)}" alt="" loading="lazy" onerror="this.remove()">` : '';
+    const src = state.photoPreview[c.id] || c.photo_url;
+    const img = src ? `<img src="${esc(src)}" alt="" loading="lazy" onerror="this.remove()">` : '';
     return `<span class="av av-${size}" style="--h:${hue}">${esc(initials(c.name))}${img}</span>`;
   }
 
@@ -93,15 +96,7 @@
   }
   const pickLink = () => `${baseUrl()}#p=${encIds(state.picks)}&n=${encodeURIComponent(state.name.trim())}`;
 
-  function resultsCode(R) {
-    const rest = [...R.top12].filter(id => !R.order.includes(id));
-    return encIds(R.order) + encIds(rest);
-  }
-  function decodeResults(code) {
-    if (!/^[0-9a-v]{5,17}$/i.test(code || '')) return null;
-    const ids = decIds(code);
-    return { miss_france: ids[0], dauphines: ids.slice(1, 5), top12: ids.slice(5).filter(Boolean) };
-  }
+
 
   /* ---------- Données historiques ---------- */
   const regionKeys = c => REGION_KEYS[c.region_en] || [c.region_en];
@@ -224,8 +219,7 @@
     return R;
   }
 
-  const activeRaw = () => state.localResults || state.fileResults;
-  const results = () => normResults(activeRaw());
+  const results = () => normResults(state.results);
 
   function resultsStatus(R) {
     if (R.top12.size === 0) return 'none';
@@ -262,23 +256,10 @@
     };
   }
 
-  /* ---------- Joueurs ---------- */
-  function addPlayer(name, code, silent) {
-    if (!validPickCode(code)) return 'invalid';
-    name = (name || '').trim().slice(0, 40) || `Anonyme ${state.players.length + 1}`;
-    const existing = state.players.find(p => norm(p.name) === norm(name));
-    if (existing) {
-      if (existing.code === code) return 'same';
-      existing.code = code;
-      save(LS.players, state.players);
-      if (!silent) toast(`Pronostic de ${name} mis à jour`);
-      return 'updated';
-    }
-    state.players.push({ name, code });
-    save(LS.players, state.players);
-    if (!silent) toast(`${name} ajouté·e au classement`);
-    return 'added';
-  }
+
+  /* ---------- Classement officiel (players.json, géré par l'organisateur) ---------- */
+  const normPlayers = data => (data && Array.isArray(data.players) ? data.players : [])
+    .filter(p => p && typeof p.name === 'string' && validPickCode(p.code));
 
   function parseLinks(text) {
     const found = [];
@@ -287,21 +268,132 @@
       const q = h >= 0 ? tok.slice(h + 1) : tok;
       if (!/(^|&)p=/.test(q)) return;
       const sp = new URLSearchParams(q);
-      found.push({ code: (sp.get('p') || '').toLowerCase(), name: sp.get('n') || '' });
+      found.push({ code: (sp.get('p') || '').toLowerCase(), name: (sp.get('n') || '').trim() });
     });
     return found;
   }
 
-  function allEntries() {
-    const list = state.players.map(p => ({ ...p, ids: decIds(p.code) }));
-    if (isComplete() && state.name.trim()) {
-      const code = encIds(state.picks);
-      const dup = list.find(p => p.code === code && norm(p.name) === norm(state.name));
-      if (dup) dup.me = true;
-      else list.unshift({ name: state.name.trim(), code, ids: [...state.picks], me: true });
-    }
-    return list;
+  // Où en est mon propre pronostic par rapport au classement officiel ?
+  function myStatus() {
+    if (!isComplete() || !state.name.trim()) return 'incomplete';
+    const code = encIds(state.picks);
+    const byName = state.players.find(p => norm(p.name) === norm(state.name));
+    if (byName) return byName.code === code ? 'ok' : 'outdated';
+    return state.players.some(p => p.code === code) ? 'ok' : 'missing';
   }
+  const isMe = p => !!state.name.trim() && norm(p.name) === norm(state.name);
+
+  /* ---------- Écritures de l'organisateur ---------- */
+  async function adminWrite(label, fn) {
+    toast(`${label} : publication…`, 60e3);
+    try {
+      const r = await fn();
+      toast(`${label} : publié ✓ visible par tous d’ici 1 à 2 min`, 4000);
+      return r;
+    } catch (e) {
+      toast(`Échec : ${e.message}`, 6000);
+      if (e.status === 401) { GH.logout(); applyAdminMode(); }
+      throw e;
+    }
+  }
+
+  async function upsertPlayers(entries) {
+    const valid = entries.filter(e => validPickCode(e.code));
+    if (!valid.length) { toast('Aucun lien de pronostic valide'); return; }
+    let sum = {};
+    const data = await adminWrite('Classement', () => GH.updateJSON('players.json', cur => {
+      const players = normPlayers(cur);
+      sum = { added: 0, updated: 0 };
+      valid.forEach(({ name, code }) => {
+        name = (name || '').trim().slice(0, 40) || `Anonyme ${players.length + 1}`;
+        const ex = players.find(p => norm(p.name) === norm(name));
+        if (!ex) { players.push({ name, code }); sum.added++; }
+        else if (ex.code !== code) { ex.code = code; sum.updated++; }
+      });
+      return { players };
+    }, `Classement : ${valid.map(e => e.name || 'Anonyme').join(', ')}`)).catch(() => null);
+    if (!data) return;
+    state.players = normPlayers(data);
+    renderAll();
+    const parts = [sum.added && `${sum.added} ajouté${sum.added > 1 ? 's' : ''}`, sum.updated && `${sum.updated} mis à jour`].filter(Boolean);
+    if (parts.length) setTimeout(() => toast(parts.join(' · ') + ' ✓', 3000), 1500);
+  }
+
+  async function removePlayer(name) {
+    const data = await adminWrite('Classement', () => GH.updateJSON('players.json',
+      cur => ({ players: normPlayers(cur).filter(p => p.name !== name) }), `Classement : retire ${name}`)).catch(() => null);
+    if (data) { state.players = normPlayers(data); renderAll(); }
+  }
+
+  async function saveResults(raw) {
+    const data = await adminWrite('Résultats', () => GH.updateJSON('results.json',
+      cur => ({ _aide: (cur && cur._aide) || '', ...raw }), 'Résultats mis à jour')).catch(() => null);
+    if (data) { state.results = data; renderAll(); }
+  }
+
+  const slugify = s => norm(s).replace(/ /g, '-');
+  async function fileToJpeg(file, max = 900) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => {
+        const i = new Image();
+        i.onload = () => res(i);
+        i.onerror = () => rej(new Error('Image illisible : utilisez un JPEG ou un PNG'));
+        i.src = url;
+      });
+      const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(img.naturalWidth * s);
+      cv.height = Math.round(img.naturalHeight * s);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      const dataUrl = cv.toDataURL('image/jpeg', 0.85);
+      return { dataUrl, b64: dataUrl.split(',')[1] };
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  async function uploadPhoto(id, file) {
+    const c = cand(id);
+    let img;
+    try { img = await fileToJpeg(file); } catch (e) { toast(e.message, 4000); return; }
+    const path = `photos/${slugify(c.region)}-${Date.now().toString(36)}.jpg`;
+    const old = c.photo_url;
+    state.photoPreview[id] = img.dataUrl;
+    refreshPhotos(id);
+    try {
+      await adminWrite(`Photo de Miss ${c.region}`, async () => {
+        await GH.putBinary(path, img.b64, `Photo : Miss ${c.region}`);
+        await GH.updateJSON(CANDS_PATH, cur => cur.map(x => x.id === id ? { ...x, photo_url: path } : x), `Photo : Miss ${c.region} (fiche)`);
+        if (old && /^photos\//.test(old)) await GH.deleteFile(old, `Photo : retire l’ancienne de Miss ${c.region}`).catch(() => {});
+      });
+      c.photo_url = path;
+    } catch {
+      delete state.photoPreview[id];
+    }
+    refreshPhotos(id);
+  }
+
+  async function removePhoto(id) {
+    const c = cand(id);
+    const old = c.photo_url;
+    if (!old && !state.photoPreview[id]) return;
+    if (!confirm(`Retirer la photo de Miss ${c.region} ?`)) return;
+    try {
+      await adminWrite(`Photo de Miss ${c.region}`, async () => {
+        await GH.updateJSON(CANDS_PATH, cur => cur.map(x => x.id === id ? { ...x, photo_url: null } : x), `Photo : retire Miss ${c.region}`);
+        if (old && /^photos\//.test(old)) await GH.deleteFile(old, `Photo : supprime Miss ${c.region}`).catch(() => {});
+      });
+      c.photo_url = null;
+      delete state.photoPreview[id];
+    } catch { /* message déjà affiché */ }
+    refreshPhotos(id);
+  }
+
+  function refreshPhotos(id) {
+    renderBoard(); renderPool(); renderCandList(); renderRanking(); renderAdmin();
+    const sheet = $('#sheet');
+    if (sheet.open && sheet.dataset.cid === String(id)) openFiche(id);
+  }
+
 
   /* ---------- Rendu : Mon pronostic ---------- */
   function buildPickTab() {
@@ -390,6 +482,7 @@
     }).join('');
   }
 
+
   function renderShare() {
     const el = $('#share');
     if (!el) return;
@@ -397,19 +490,41 @@
     if (!isComplete()) missing.push(`${12 - pickCount()} case${12 - pickCount() > 1 ? 's' : ''} à remplir`);
     if (!state.name.trim()) missing.push('votre pseudo');
     if (missing.length) {
-      el.innerHTML = `<div class="share-box locked">${ICON.share}<div><b>Lien de partage</b><p>Il manque : ${missing.join(' et ')}.</p></div></div>`;
+      el.innerHTML = `<div class="share-box locked">${ICON.share}<div><b>${GH.isAdmin ? 'Publier mon pronostic' : 'Lien à envoyer à l’organisateur'}</b><p>Il manque : ${missing.join(' et ')}.</p></div></div>`;
       return;
     }
+    const st = myStatus();
     const link = pickLink();
-    el.innerHTML = `<div class="share-box">
-        <div class="share-top">${ICON.share}<div><b>Votre lien de pronostic</b><p>Envoyez-le à vos amis : il contient tout votre Top 12. Si vous changez d’avis, renvoyez le nouveau lien.</p></div></div>
+    if (GH.isAdmin) {
+      const msg = {
+        ok: '✓ Votre pronostic est à jour dans le classement. Modifiez votre Top 12 quand vous voulez puis republiez.',
+        outdated: 'Vous avez modifié votre Top 12 : republiez-le pour mettre le classement à jour.',
+        missing: 'Votre pronostic n’est pas encore dans le classement.'
+      }[st];
+      el.innerHTML = `<div class="share-box ${st === 'ok' ? 'ok' : ''}">
+          <div class="share-top">${ICON.crown}<div><b>Mon pronostic (organisateur)</b><p>${msg}</p></div></div>
+          <div class="row-actions">
+            ${st === 'ok' ? '' : `<button class="btn gold" data-action="publish-mine">${ICON.share}${st === 'outdated' ? 'Mettre à jour dans le classement' : 'Publier dans le classement'}</button>`}
+            <button class="btn ghost" data-action="copy-link">${ICON.copy}Copier mon lien</button>
+          </div>
+        </div>`;
+      return;
+    }
+    const msg = {
+      ok: '✓ Votre pronostic est dans le classement. Si vous changez d’avis, modifiez votre Top 12 et renvoyez le nouveau lien.',
+      outdated: 'Vous avez modifié votre Top 12 : renvoyez ce nouveau lien à l’organisateur pour mettre le classement à jour.',
+      missing: 'Envoyez ce lien à l’organisateur pour entrer dans le classement. Vous pourrez encore le modifier ensuite.'
+    }[st];
+    el.innerHTML = `<div class="share-box ${st === 'ok' ? 'ok' : ''}">
+        <div class="share-top">${ICON.share}<div><b>Votre lien de pronostic</b><p>${msg}</p></div></div>
         <input class="link-field" readonly value="${esc(link)}" aria-label="Lien de partage" onclick="this.select()">
         <div class="row-actions">
           <button class="btn gold" data-action="copy-link">${ICON.copy}Copier le lien</button>
-          ${navigator.share ? `<button class="btn" data-action="share-link">${ICON.share}Partager</button>` : ''}
+          ${navigator.share ? `<button class="btn" data-action="share-link">${ICON.share}Envoyer</button>` : ''}
         </div>
       </div>`;
   }
+
 
   /* ---------- Rendu : Candidates ---------- */
   function buildCandsTab() {
@@ -463,7 +578,10 @@
     }).join('');
   }
 
+
   /* ---------- Fiche candidate ---------- */
+  const photoOf = c => state.photoPreview[c.id] || c.photo_url;
+
   function openFiche(id) {
     const c = cand(id);
     if (!c) return;
@@ -472,18 +590,25 @@
     const last = titles.find(t => !t.repl);
     const recent = recentFor(c);
     const s = slotOf(id);
+    const photo = photoOf(c);
     const sheet = $('#sheet');
+    sheet.dataset.cid = String(id);
     sheet.innerHTML = `
       <div class="sheet-inner">
         <button class="sheet-close" data-action="close-sheet" aria-label="Fermer">${ICON.x}</button>
+        ${photo ? `<div class="fiche-photo"><img src="${esc(photo)}" alt="Portrait de ${esc(c.name)}" onerror="this.parentNode.remove()"></div>` : ''}
         <div class="fiche-head">
-          ${avatar(c, 'xl')}
+          ${photo ? '' : avatar(c, 'xl')}
           <div>
             <p class="eyebrow">Miss ${esc(c.region)}</p>
             <h2 id="sheet-title">${esc(c.name)}</h2>
             ${c.instagram ? `<a class="insta" href="https://instagram.com/${esc(String(c.instagram).replace(/^@/, ''))}" target="_blank" rel="noopener">@${esc(String(c.instagram).replace(/^@/, ''))}</a>` : ''}
           </div>
         </div>
+        ${GH.isAdmin ? `<div class="row-actions admin-row">
+            ${photoInput(id, photo ? 'Changer la photo' : 'Ajouter une photo')}
+            ${photo ? `<button class="btn ghost small" data-action="photo-remove" data-cid="${id}">${ICON.trash}Retirer</button>` : ''}
+          </div>` : ''}
         <div class="stats">
           <div><span>Âge</span><b>${c.age} ans</b></div>
           <div><span>Taille</span><b>${heightTxt(c.height_m)}</b></div>
@@ -499,12 +624,15 @@
         <div class="recent">${recent.map(r => `<div class="rec tier-${r.tier}"><span>${r.year}</span><b>${r.label || '—'}</b></div>`).join('')}</div>
         <div class="sheet-actions">
           ${s >= 0
-            ? `<button class="btn" data-action="sheet-unpick" data-cid="${id}">${ICON.x}Retirer (${SLOT_LABELS[s]})</button>`
+            ? `<button class="btn" data-action="sheet-unpick" data-cid="${id}">${ICON.x}Retirer de mon Top 12 (${SLOT_LABELS[s]})</button>`
             : `<button class="btn gold" data-action="sheet-pick" data-cid="${id}">${ICON.plus}Ajouter à mon Top 12</button>`}
         </div>
       </div>`;
     showSheet();
   }
+
+  const photoInput = (id, label) => `<label class="btn small file-btn">${ICON.camera}${label}<input type="file" accept="image/*" data-photo="${id}" hidden></label>`;
+
 
   function showSheet() {
     const sheet = $('#sheet');
@@ -526,18 +654,14 @@
     }).join('')}</ol>`;
   }
 
-  /* ---------- Rendu : Classement ---------- */
+
+  /* ---------- Rendu : Classement (lecture seule pour tous) ---------- */
   function buildRankTab() {
     $('#tab-rank').innerHTML = `
       <div id="resStatus"></div>
+      <div id="myNote"></div>
       <div class="board-head"><h2>Classement</h2><span class="progress">sur ${MAX_SCORE} pts</span></div>
       <div id="leaderboard" class="lb"></div>
-      <div class="card-block">
-        <h3>Ajouter des amis</h3>
-        <p class="muted">Collez ici les liens reçus (un ou plusieurs, même au milieu d’un message).</p>
-        <textarea id="linksInput" rows="3" placeholder="https://…#p=…&amp;n=Léa"></textarea>
-        <div class="row-actions"><button class="btn gold" data-action="add-links">${ICON.plus}Ajouter au classement</button></div>
-      </div>
       <details class="card-block rules">
         <summary>Barème</summary>
         <ul>
@@ -547,12 +671,7 @@
           <li><b>${SCORING.wrongRank} pt</b> par candidate qualifiée dans le Top 12 mais pas au bon rang</li>
         </ul>
         <p class="muted">Maximum ${MAX_SCORE} pts. Égalité départagée par le nombre de pronostics exacts. Pendant la soirée, les scores marqués « ? » sont provisoires.</p>
-      </details>
-      <details id="resEditor" class="card-block">
-        <summary>Saisir les résultats (organisateur)</summary>
-        <div id="resForm"></div>
       </details>`;
-    $('#resEditor').addEventListener('toggle', e => { if (e.target.open) renderResForm(); });
   }
 
   function renderResStatus() {
@@ -560,30 +679,42 @@
     if (!el) return;
     const R = results();
     const st = resultsStatus(R);
-    const src = state.localResults ? 'saisie locale' : 'results.json';
-    let html;
     if (st === 'none') {
-      html = `<div class="status wait">${ICON.trophy}<div><b>Résultats pas encore connus</b><p>Rendez-vous samedi 12 décembre sur TF1. Le classement se mettra à jour dès que les résultats seront saisis.</p></div></div>`;
-    } else {
-      const miss = R.order[0] && cand(R.order[0]);
-      html = `<div class="status ${st}">${ICON.trophy}<div>
-          <b>${st === 'final' ? 'Résultats définitifs' : 'Résultats en cours'}</b>
-          <p>${miss ? `Miss France 2027 : <b>${esc(miss.region)}</b>, ${esc(miss.name)}` : `Top 12 : ${R.top12.size}/12 connues · Top 5 : ${R.order.filter(Boolean).length}/5`}</p>
-          <p class="muted small">Source : ${src}${R.unresolved.length ? ` · non reconnu : ${R.unresolved.map(esc).join(', ')}` : ''}</p>
-        </div></div>`;
+      el.innerHTML = `<div class="status wait">${ICON.trophy}<div><b>Résultats pas encore connus</b><p>Rendez-vous samedi 12 décembre sur TF1. Le classement se mettra à jour pendant la soirée.</p></div></div>`;
+      return;
     }
-    el.innerHTML = html;
+    const miss = R.order[0] && cand(R.order[0]);
+    el.innerHTML = `<div class="status ${st}">${ICON.trophy}<div>
+        <b>${st === 'final' ? 'Résultats définitifs' : 'Résultats en cours'}</b>
+        <p>${miss ? `Miss France 2027 : <b>${esc(miss.region)}</b>, ${esc(miss.name)}` : `Top 12 : ${R.top12.size}/12 connues · Top 5 : ${R.order.filter(Boolean).length}/5`}</p>
+        ${R.unresolved.length && GH.isAdmin ? `<p class="muted small">Non reconnu dans results.json : ${R.unresolved.map(esc).join(', ')}</p>` : ''}
+      </div></div>`;
+  }
+
+  function renderMyNote() {
+    const el = $('#myNote');
+    if (!el) return;
+    const st = myStatus();
+    const txt = {
+      incomplete: GH.isAdmin ? '' : 'Vous n’êtes pas encore dans le classement : faites votre Top 12 et envoyez votre lien à l’organisateur.',
+      missing: GH.isAdmin ? 'Votre pronostic n’est pas publié : onglet « Mon pronostic » → Publier.' : 'Votre pronostic n’est pas encore dans le classement : envoyez votre lien à l’organisateur.',
+      outdated: GH.isAdmin ? 'Votre Top 12 a changé depuis sa publication : onglet « Mon pronostic » → Mettre à jour.' : 'Votre Top 12 a changé : renvoyez votre nouveau lien à l’organisateur.',
+      ok: ''
+    }[st];
+    el.innerHTML = txt ? `<p class="note">${txt}</p>` : '';
   }
 
   const openDetails = new Set();
   function renderRanking() {
     renderResStatus();
+    renderMyNote();
     const el = $('#leaderboard');
     if (!el) return;
     const R = results();
-    const entries = allEntries().map(e => ({ ...e, s: scorePicks(e.ids, R) }));
+    const entries = state.players.map(p => ({ ...p, ids: decIds(p.code), me: isMe(p) }))
+      .map(e => ({ ...e, s: scorePicks(e.ids, R) }));
     if (!entries.length) {
-      el.innerHTML = `<p class="empty-msg">Personne pour l’instant. Complétez votre pronostic (avec pseudo) et collez les liens de vos amis ci-dessous.</p>`;
+      el.innerHTML = `<p class="empty-msg">Personne pour l’instant. Les pronostics apparaîtront ici dès que l’organisateur les aura enregistrés.</p>`;
       return;
     }
     const started = resultsStatus(R) !== 'none';
@@ -592,21 +723,63 @@
     el.innerHTML = entries.map((e, i) => {
       if (started) { const k = `${e.s.total}|${e.s.exact}`; if (k !== prev) rank = i + 1; prev = k; }
       const miss = cand(e.ids[0]);
-      const id = `${e.name}|${e.code}`;
-      return `<details class="lb-row ${e.me ? 'me' : ''}" data-key="${esc(id)}" ${openDetails.has(id) ? 'open' : ''}>
+      const key = `${e.name}|${e.code}`;
+      return `<details class="lb-row ${e.me ? 'me' : ''}" data-key="${esc(key)}" ${openDetails.has(key) ? 'open' : ''}>
           <summary>
             <span class="lb-rank ${started && rank <= 3 ? 'r' + rank : ''}">${started ? rank : '•'}</span>
             <span class="lb-name"><b>${esc(e.name)}${e.me ? ' <small>(moi)</small>' : ''}</b><small>${ICON.crown}${esc(miss.region)}</small></span>
             <span class="lb-score">${started ? `${e.s.total}${e.s.pending ? '<i>?</i>' : ''}<small>pts</small>` : ''}</span>
           </summary>
           ${picksListHTML(e.ids, started ? e.s : null)}
-          ${e.me ? '' : `<div class="row-actions"><button class="btn ghost small" data-action="remove-player" data-name="${esc(e.name)}">${ICON.trash}Retirer ${esc(e.name)}</button></div>`}
         </details>`;
     }).join('');
     el.querySelectorAll('details').forEach(d => d.addEventListener('toggle', () => {
       d.open ? openDetails.add(d.dataset.key) : openDetails.delete(d.dataset.key);
     }));
   }
+
+  /* ---------- Rendu : Admin (organisateur uniquement) ---------- */
+  function renderAdmin() {
+    const el = $('#tab-admin');
+    if (!el || !GH.isAdmin) return;
+    const withPhoto = state.cands.filter(c => photoOf(c)).length;
+    el.innerHTML = `
+      <div class="status final">${ICON.crown}<div>
+        <b>Mode organisateur</b>
+        <p>Vos modifications sont publiées dans le dépôt GitHub et visibles par tous d’ici 1 à 2 minutes. Vos amis, eux, ne peuvent que faire leur pronostic.</p>
+        <div class="row-actions"><button class="btn ghost small" data-action="admin-logout">Se déconnecter de cet appareil</button></div>
+      </div></div>
+
+      <div class="card-block">
+        <h3>Joueurs (${state.players.length})</h3>
+        <p class="muted">Collez les liens reçus de vos amis (un ou plusieurs, même au milieu d’un message). Un nouveau lien avec le même pseudo remplace l’ancien.</p>
+        <textarea id="linksInput" rows="3" placeholder="https://…#p=…&amp;n=Léa"></textarea>
+        <div class="row-actions"><button class="btn gold" data-action="add-links">${ICON.plus}Ajouter au classement</button></div>
+        ${state.players.length ? `<ul class="admin-list">${state.players.map(p => `
+          <li><span><b>${esc(p.name)}</b><small>${ICON.crown}${esc(cand(decIds(p.code)[0]).region)}</small></span>
+          <button class="btn ghost small" data-action="remove-player" data-name="${esc(p.name)}" aria-label="Retirer ${esc(p.name)}">${ICON.trash}</button></li>`).join('')}</ul>` : ''}
+      </div>
+
+      <details id="resEditor" class="card-block" ${resEditorOpen ? 'open' : ''}>
+        <summary>Résultats de l’élection</summary>
+        <div id="resForm"></div>
+      </details>
+
+      <div class="card-block">
+        <h3>Photos (${withPhoto}/31)</h3>
+        <p class="muted">Choisissez une image par candidate : elle est redimensionnée automatiquement avant envoi.</p>
+        <div class="photo-grid">${state.cands.map(c => `
+          <div class="ptile">
+            ${avatar(c, 'm')}
+            <span class="ptile-txt"><b>${esc(c.region)}</b><small>${esc(c.name)}</small></span>
+            ${photoInput(c.id, photoOf(c) ? 'Changer' : 'Ajouter')}
+            ${photoOf(c) ? `<button class="btn ghost small icon-only" data-action="photo-remove" data-cid="${c.id}" aria-label="Retirer la photo de ${esc(c.region)}">${ICON.trash}</button>` : ''}
+          </div>`).join('')}</div>
+      </div>`;
+    $('#resEditor').addEventListener('toggle', e => { resEditorOpen = e.target.open; if (e.target.open) renderResForm(); });
+    if (resEditorOpen) renderResForm();
+  }
+  let resEditorOpen = false;
 
   function renderResForm() {
     const el = $('#resForm');
@@ -616,7 +789,7 @@
       .sort((a, b) => a.region.localeCompare(b.region, 'fr'))
       .map(c => `<option value="${c.id}" ${sel === c.id ? 'selected' : ''}>${esc(c.region)} · ${esc(c.name)}</option>`).join('');
     el.innerHTML = `
-      <p class="muted">Pour suivre la soirée en direct : cochez le Top 12 dès son annonce, puis complétez les dauphines et la Miss. La saisie reste sur cet appareil ; partagez ensuite le lien des résultats, ou remplissez <code>results.json</code> dans le dépôt pour tout le monde.</p>
+      <p class="muted">Pendant la soirée : cochez le Top 12 dès son annonce et enregistrez, puis complétez les dauphines et la Miss au fur et à mesure.</p>
       <div class="res-grid">
         ${RANKS.map((r, i) => `<label class="field"><span class="field-label">${i === 0 ? ICON.crown : ''}${r}</span><select data-rank="${i}">${opts(R.order[i])}</select></label>`).join('')}
       </div>
@@ -624,8 +797,8 @@
       <div class="chips">${state.cands.map(c => `<label class="chip"><input type="checkbox" value="${c.id}" ${R.top12.has(c.id) ? 'checked' : ''}><span>${esc(c.region)}</span></label>`).join('')}</div>
       <p class="muted small" id="resCount"></p>
       <div class="row-actions">
-        <button class="btn gold" data-action="save-results">Enregistrer</button>
-        ${state.localResults ? `<button class="btn" data-action="copy-results">${ICON.copy}Lien des résultats</button><button class="btn ghost" data-action="reset-results">Revenir à results.json</button>` : ''}
+        <button class="btn gold" data-action="save-results">Publier les résultats</button>
+        ${resultsStatus(R) !== 'none' ? `<button class="btn ghost" data-action="clear-results">${ICON.trash}Tout effacer</button>` : ''}
       </div>`;
     const count = () => { $('#resCount').textContent = `${el.querySelectorAll('.chips input:checked').length}/12 cochées`; };
     el.querySelectorAll('select').forEach(s => s.addEventListener('change', () => {
@@ -645,21 +818,69 @@
     const top12 = new Set([...el.querySelectorAll('.chips input:checked')].map(i => +i.value));
     set.forEach(id => top12.add(id));
     if (top12.size > 12) { toast(`${top12.size} candidates cochées : 12 maximum`); return; }
-    state.localResults = { miss_france: order[0], dauphines: order.slice(1), top12: [...top12] };
-    save(LS.results, state.localResults);
-    renderRanking(); renderResForm();
-    toast('Résultats enregistrés');
+    saveResults({ top12: [...top12], miss_france: order[0], dauphines: order.slice(1) });
   }
 
-  function renderAll() { renderBoard(); renderPool(); renderShare(); renderCandList(); renderRanking(); }
+  function renderAll() { renderBoard(); renderPool(); renderShare(); renderCandList(); renderRanking(); renderAdmin(); }
 
-  /* ---------- Onglets ---------- */
+  /* ---------- Onglets & mode organisateur ---------- */
+  const TABS = () => GH.isAdmin ? ['pick', 'cands', 'rank', 'admin'] : ['pick', 'cands', 'rank'];
   function setTab(tab) {
+    if (!TABS().includes(tab)) tab = 'pick';
     state.tab = tab;
     save(LS.tab, tab);
     document.querySelectorAll('.tabs [role=tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
-    ['pick', 'cands', 'rank'].forEach(t => { $('#tab-' + t).hidden = t !== tab; });
+    ['pick', 'cands', 'rank', 'admin'].forEach(t => { $('#tab-' + t).hidden = t !== tab; });
   }
+
+  function applyAdminMode() {
+    $('#tabAdmin').hidden = !GH.isAdmin;
+    $('#adminLink').hidden = GH.isAdmin;
+    if (!GH.isAdmin) $('#tab-admin').innerHTML = '';
+    renderAll();
+    setTab(state.tab);
+  }
+
+  function openLogin() {
+    const sheet = $('#sheet');
+    sheet.dataset.cid = '';
+    sheet.innerHTML = `<div class="sheet-inner">
+        <button class="sheet-close" data-action="close-sheet" aria-label="Fermer">${ICON.x}</button>
+        <p class="eyebrow">Espace organisateur</p>
+        <h2 id="sheet-title">Connexion</h2>
+        <p class="muted">Réservé à l’organisateur : il faut un jeton GitHub capable d’écrire dans le dépôt <b>${esc(GH.REPO.repo)}</b>. Il reste enregistré sur cet appareil uniquement.</p>
+        <ol class="steps">
+          <li>Ouvrez <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com → Fine-grained token</a>.</li>
+          <li>Nom : « PickEm admin », expiration : après le 13 décembre.</li>
+          <li>Repository access : <i>Only select repositories</i> → <b>${esc(GH.REPO.repo)}</b>.</li>
+          <li>Permissions → Repository → <b>Contents : Read and write</b>.</li>
+          <li>« Generate token », copiez-le et collez-le ici.</li>
+        </ol>
+        <label class="field"><span class="field-label">Jeton GitHub</span>
+          <input id="tokenInput" type="password" autocomplete="off" placeholder="github_pat_…"></label>
+        <p id="loginErr" class="err" role="alert"></p>
+        <div class="sheet-actions"><button class="btn gold" data-action="admin-do-login">Se connecter</button></div>
+      </div>`;
+    showSheet();
+    setTimeout(() => $('#tokenInput') && $('#tokenInput').focus(), 50);
+  }
+
+  async function doLogin() {
+    const btn = $('[data-action="admin-do-login"]');
+    btn.disabled = true;
+    $('#loginErr').textContent = '';
+    try {
+      await GH.login($('#tokenInput').value);
+      closeSheet();
+      await reloadShared();
+      applyAdminMode();
+      setTab('admin');
+      toast('Mode organisateur activé ✓');
+    } catch (e) {
+      $('#loginErr').textContent = e.message;
+    } finally { btn.disabled = false; }
+  }
+
 
   /* ---------- Liens entrants ---------- */
   function handleHash() {
@@ -667,37 +888,28 @@
     if (!h) return;
     const sp = new URLSearchParams(h);
     history.replaceState(null, '', baseUrl());
-    if (sp.get('p')) {
-      const code = sp.get('p').toLowerCase();
-      const name = (sp.get('n') || '').trim();
-      if (!validPickCode(code)) { toast('Lien de pronostic invalide'); return; }
-      if (code === encIds(state.picks) && norm(name) === norm(state.name)) { toast('C’est votre propre pronostic'); return; }
-      const ids = decIds(code);
-      $('#sheet').innerHTML = `<div class="sheet-inner">
-          <button class="sheet-close" data-action="close-sheet" aria-label="Fermer">${ICON.x}</button>
-          <p class="eyebrow">Pronostic reçu</p>
-          <h2 id="sheet-title">${esc(name || 'Anonyme')}</h2>
-          ${picksListHTML(ids)}
-          <div class="sheet-actions">
-            <button class="btn gold" data-action="import-player" data-code="${code}" data-name="${esc(name)}">${ICON.plus}Ajouter au classement</button>
-            ${pickCount() === 0 ? `<button class="btn ghost" data-action="start-own">Faire mon pronostic</button>` : ''}
-          </div>
-        </div>`;
-      showSheet();
-    } else if (sp.get('r')) {
-      const raw = decodeResults(sp.get('r'));
-      if (!raw) { toast('Lien de résultats invalide'); return; }
-      const R = normResults(raw);
-      const miss = R.order[0] && cand(R.order[0]);
-      $('#sheet').innerHTML = `<div class="sheet-inner">
-          <button class="sheet-close" data-action="close-sheet" aria-label="Fermer">${ICON.x}</button>
-          <p class="eyebrow">Résultats reçus</p>
-          <h2 id="sheet-title">${miss ? esc(miss.region) + ' couronnée' : `Top 12 : ${R.top12.size}/12`}</h2>
-          <p class="muted">Utiliser ces résultats pour calculer le classement sur cet appareil ?</p>
-          <div class="sheet-actions"><button class="btn gold" data-action="use-results" data-code="${esc(sp.get('r'))}">Utiliser ces résultats</button></div>
-        </div>`;
-      showSheet();
-    }
+    if (h === 'admin' || sp.has('admin')) { if (!GH.isAdmin) openLogin(); else setTab('admin'); return; }
+    if (!sp.get('p')) return;
+    const code = sp.get('p').toLowerCase();
+    const name = (sp.get('n') || '').trim();
+    if (!validPickCode(code)) { toast('Lien de pronostic invalide'); return; }
+    if (code === encIds(state.picks) && norm(name) === norm(state.name)) { toast('C’est votre propre pronostic'); return; }
+    const existing = state.players.find(p => norm(p.name) === norm(name));
+    const sheet = $('#sheet');
+    sheet.dataset.cid = '';
+    sheet.innerHTML = `<div class="sheet-inner">
+        <button class="sheet-close" data-action="close-sheet" aria-label="Fermer">${ICON.x}</button>
+        <p class="eyebrow">Pronostic de</p>
+        <h2 id="sheet-title">${esc(name || 'Anonyme')}</h2>
+        ${GH.isAdmin && existing ? `<p class="note">${existing.code === code ? 'Déjà enregistré tel quel dans le classement.' : `Remplacera le pronostic actuel de ${esc(existing.name)}.`}</p>` : ''}
+        ${picksListHTML(decIds(code))}
+        <div class="sheet-actions">
+          ${GH.isAdmin
+            ? (existing && existing.code === code ? '' : `<button class="btn gold" data-action="import-player" data-code="${code}" data-name="${esc(name)}">${ICON.plus}${existing ? 'Mettre à jour le classement' : 'Ajouter au classement'}</button>`)
+            : `<button class="btn gold" data-action="start-own">Faire mon propre pronostic</button>`}
+        </div>
+      </div>`;
+    showSheet();
   }
 
   /* ---------- Clics ---------- */
@@ -724,42 +936,45 @@
       case 'close-sheet': closeSheet(); break;
       case 'sheet-pick': addPick(cid); openFiche(cid); break;
       case 'sheet-unpick': removePick(slotOf(cid)); openFiche(cid); break;
-      case 'import-player': {
-        const r = addPlayer(t.dataset.name, t.dataset.code);
-        if (r === 'same') toast('Déjà dans le classement');
-        closeSheet(); renderRanking(); setTab('rank');
-        break;
-      }
       case 'start-own': closeSheet(); setTab('pick'); break;
+      case 'admin-login': openLogin(); break;
+      case 'admin-do-login': doLogin(); break;
+      case 'admin-logout':
+        if (confirm('Se déconnecter du mode organisateur sur cet appareil ?')) { GH.logout(); applyAdminMode(); toast('Mode organisateur désactivé'); }
+        break;
+      // ---- organisateur uniquement (sans jeton, GitHub refuse de toute façon) ----
+      case 'publish-mine':
+        if (GH.isAdmin) upsertPlayers([{ name: state.name, code: encIds(state.picks) }]);
+        break;
+      case 'import-player':
+        if (GH.isAdmin) { closeSheet(); upsertPlayers([{ name: t.dataset.name, code: t.dataset.code }]); }
+        break;
       case 'add-links': {
+        if (!GH.isAdmin) break;
         const input = $('#linksInput');
         const links = parseLinks(input.value);
         if (!links.length) { toast('Aucun lien de pronostic trouvé'); break; }
-        const res = links.map(l => addPlayer(l.name, l.code, true));
-        const added = res.filter(r => r === 'added').length, upd = res.filter(r => r === 'updated').length, bad = res.filter(r => r === 'invalid').length;
-        toast([added && `${added} ajouté${added > 1 ? 's' : ''}`, upd && `${upd} mis à jour`, bad && `${bad} invalide${bad > 1 ? 's' : ''}`].filter(Boolean).join(' · ') || 'Déjà dans le classement');
-        input.value = '';
-        renderRanking();
+        upsertPlayers(links).then(() => { if ($('#linksInput')) $('#linksInput').value = ''; });
         break;
       }
       case 'remove-player':
-        if (confirm(`Retirer ${t.dataset.name} du classement ?`)) {
-          state.players = state.players.filter(p => p.name !== t.dataset.name);
-          save(LS.players, state.players);
-          renderRanking();
-        }
+        if (GH.isAdmin && confirm(`Retirer ${t.dataset.name} du classement ?`)) removePlayer(t.dataset.name);
         break;
-      case 'save-results': saveResultsForm(); break;
-      case 'reset-results':
-        state.localResults = null; save(LS.results, null); renderRanking(); renderResForm(); toast('Résultats de results.json');
+      case 'save-results': if (GH.isAdmin) saveResultsForm(); break;
+      case 'clear-results':
+        if (GH.isAdmin && confirm('Effacer tous les résultats saisis ?')) saveResults({ top12: [], miss_france: null, dauphines: [null, null, null, null] });
         break;
-      case 'copy-results': copyText(`${baseUrl()}#r=${resultsCode(results())}`, 'Lien des résultats copié'); break;
-      case 'use-results':
-        state.localResults = decodeResults(t.dataset.code); save(LS.results, state.localResults);
-        closeSheet(); renderRanking(); setTab('rank'); toast('Résultats mis à jour');
-        break;
+      case 'photo-remove': if (GH.isAdmin) removePhoto(cid); break;
     }
   }
+
+  function onChange(e) {
+    const input = e.target.closest('input[type=file][data-photo]');
+    if (!input || !GH.isAdmin || !input.files || !input.files[0]) return;
+    uploadPhoto(+input.dataset.photo, input.files[0]);
+    input.value = '';
+  }
+
 
   /* ---------- Glisser-déposer (souris et tactile) ---------- */
   let drag = null;
@@ -853,18 +1068,33 @@
     else el.textContent = 'L’élection a eu lieu';
   }
 
+
   /* ---------- Démarrage ---------- */
-  async function refreshFileResults() {
-    try {
-      const r = await getJSON('results.json');
-      if (JSON.stringify(r) !== JSON.stringify(state.fileResults)) { state.fileResults = r; renderRanking(); }
-    } catch { /* pas de results.json */ }
+  const CANDS_PATH = 'data/candidates_2027.json';
+  // L'organisateur lit directement le dépôt (toujours à jour) ; les autres lisent le site publié
+  const loadShared = path => GH.isAdmin ? GH.readJSON(path).catch(() => getJSON(path)) : getJSON(path);
+
+  async function reloadShared() {
+    const [players, res, cands] = await Promise.all([
+      loadShared('players.json').catch(() => null),
+      loadShared('results.json').catch(() => null),
+      GH.isAdmin ? loadShared(CANDS_PATH).catch(() => null) : null
+    ]);
+    let changed = false;
+    const p = normPlayers(players);
+    if (JSON.stringify(p) !== JSON.stringify(state.players)) { state.players = p; changed = true; }
+    if (JSON.stringify(res) !== JSON.stringify(state.results)) { state.results = res; changed = true; }
+    if (Array.isArray(cands)) cands.forEach(c => {
+      const cur = cand(c.id);
+      if (cur && cur.photo_url !== c.photo_url) { cur.photo_url = c.photo_url; changed = true; }
+    });
+    return changed;
   }
 
   async function init() {
     try {
       const [cands, winners, recent] = await Promise.all([
-        getJSON('data/candidates_2027.json'),
+        loadShared(CANDS_PATH),
         getJSON('data/winners_1920_2026.json'),
         getJSON('data/recent_placements_2022_2026.json')
       ]);
@@ -879,22 +1109,25 @@
         <p class="muted small">${esc(err.message)}</p></div></div>`;
       return;
     }
-    await refreshFileResults();
-    state.localResults = load(LS.results, null);
+    await reloadShared();
     state.picks = sanitizePicks(load(LS.picks, []));
     state.name = load(LS.name, '');
-    state.players = (load(LS.players, []) || []).filter(p => p && validPickCode(p.code));
+    try { localStorage.removeItem('mf27.players'); localStorage.removeItem('mf27.results'); } catch { /* ancienne version */ }
 
     buildPickTab(); buildCandsTab(); buildRankTab();
-    renderAll();
-    setTab(['pick', 'cands', 'rank'].includes(load(LS.tab, 'pick')) ? load(LS.tab, 'pick') : 'pick');
+    state.tab = load(LS.tab, 'pick');
+    applyAdminMode();
     document.addEventListener('click', onClick, true);
+    document.addEventListener('change', onChange);
     $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
     bindDrag();
     renderCountdown();
     setInterval(renderCountdown, 60e3);
-    // Pendant la soirée, results.json est relu régulièrement
-    setInterval(() => { if (document.visibilityState === 'visible') refreshFileResults(); }, 90e3);
+    // Classement et résultats relus régulièrement (utile le soir de l'élection)
+    setInterval(async () => {
+      if (document.visibilityState !== 'visible' || drag) return;
+      if (await reloadShared()) { renderBoard(); renderPool(); renderShare(); renderCandList(); renderRanking(); if (state.tab !== 'admin') renderAdmin(); }
+    }, 60e3);
     window.addEventListener('hashchange', handleHash);
     handleHash();
   }

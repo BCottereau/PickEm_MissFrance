@@ -427,3 +427,31 @@ details.card-block > summary { cursor: pointer; font-weight: 600; color: var(--g
 .foot { max-width: 720px; margin: 0 auto; padding: 8px 16px 32px; text-align: center; color: var(--muted); font-size: 12px; }
 
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* ---------- Organisateur & photos ---------- */
+.tabs button[hidden] { display: none; }
+.link-btn { border: 0; background: none; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; font-size: 12px; margin-top: 10px; padding: 4px; }
+.note { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(241, 184, 96, .1); border: 1px solid rgba(241, 184, 96, .35); color: var(--part); font-size: 13.5px; }
+.err { color: var(--bad); font-size: 13.5px; min-height: 1.2em; margin: 8px 0 0; }
+.steps { padding-left: 20px; margin: 12px 0 16px; display: grid; gap: 4px; font-size: 14px; }
+.steps a { color: var(--gold); }
+.share-box.ok { border-color: rgba(99, 214, 158, .4); background: linear-gradient(140deg, rgba(99, 214, 158, .1), transparent), var(--surface); }
+.file-btn { position: relative; }
+.file-btn input { display: none; }
+.btn.icon-only { padding: 6px 9px; }
+.admin-row { margin: 14px 0 0; }
+.fiche-photo { margin: -22px -18px 16px; height: min(56vh, 460px); overflow: hidden; border-radius: 20px 20px 0 0; background: var(--surface); }
+@media (max-width: 599px) { .fiche-photo { border-radius: 20px 20px 0 0; } }
+.fiche-photo img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%; display: block; }
+.av img { object-position: 50% 20%; }
+.admin-list { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 4px; }
+.admin-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 4px 6px 10px; border-radius: 10px; background: var(--bg-2); }
+.admin-list li > span { display: flex; flex-direction: column; min-width: 0; }
+.admin-list small { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
+.admin-list small svg { width: 12px; height: 12px; color: var(--gold); }
+.photo-grid { display: grid; gap: 6px; margin-top: 12px; }
+@media (min-width: 600px) { .photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ptile { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 12px; background: var(--bg-2); }
+.ptile-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ptile-txt b { font-size: 13.5px; }
+.ptile-txt small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
