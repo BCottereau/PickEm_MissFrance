@@ -24,6 +24,8 @@ exige le jeton de l'organisateur.
   modification ;
 - ajoute ou change les photos des candidates (redimensionnées automatiquement) →
   `photos/` + `photo_url` dans `data/candidates_2027.json` ;
+- corrige les fiches des candidates (nom, région affichée, âge, taille, ville, Instagram)
+  → `data/candidates_2027.json` ;
 - saisit les résultats le soir de l'élection, au fur et à mesure → `results.json`.
 
 Chaque modification est un commit dans le dépôt, visible par tous d'ici 1 à 2 minutes

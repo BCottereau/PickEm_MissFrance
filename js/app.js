@@ -30,7 +30,8 @@
     trophy: svg('<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>'),
     search: svg('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'),
     plus: svg('<path d="M5 12h14"/><path d="M12 5v14"/>'),
-    camera: svg('<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>')
+    camera: svg('<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>'),
+    pencil: svg('<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>')
   };
 
 
@@ -388,6 +389,63 @@
     refreshPhotos(id);
   }
 
+  /* ---------- Modifier une fiche candidate ---------- */
+  const EDIT_FIELDS = [
+    { key: 'name', label: 'Prénom et nom', type: 'text' },
+    { key: 'region', label: 'Région (affichée)', type: 'text' },
+    { key: 'age', label: 'Âge', type: 'number' },
+    { key: 'height_m', label: 'Taille (m)', type: 'text' },
+    { key: 'hometown', label: 'Ville', type: 'text' },
+    { key: 'instagram', label: 'Instagram (pseudo, facultatif)', type: 'text' }
+  ];
+
+  function openEditor(id) {
+    const c = cand(id);
+    const sheet = $('#sheet');
+    sheet.dataset.cid = '';
+    sheet.innerHTML = `<div class="sheet-inner">
+        <button class="sheet-close" data-action="close-sheet" aria-label="Fermer">${ICON.x}</button>
+        <p class="eyebrow">Modifier la fiche</p>
+        <h2 id="sheet-title">Miss ${esc(c.region)}</h2>
+        <div class="edit-grid">${EDIT_FIELDS.map(f => `
+          <label class="field"><span class="field-label">${f.label}</span>
+            <input data-field="${f.key}" type="${f.type}" ${f.type === 'number' ? 'inputmode="numeric" min="15" max="60"' : ''} ${f.key === 'height_m' ? 'inputmode="decimal" placeholder="1,75"' : ''}
+              value="${esc(f.key === 'height_m' && c.height_m ? String(c.height_m).replace('.', ',') : c[f.key] ?? '')}"></label>`).join('')}
+        </div>
+        <p id="editErr" class="err" role="alert"></p>
+        <div class="sheet-actions">
+          <button class="btn gold" data-action="save-cand" data-cid="${id}">Publier les modifications</button>
+          <button class="btn ghost" data-action="info" data-cid="${id}">Annuler</button>
+        </div>
+      </div>`;
+    showSheet();
+  }
+
+  async function saveEditor(id) {
+    const val = k => ($(`#sheet [data-field="${k}"]`).value || '').replace(/\s+/g, ' ').trim();
+    const patch = { name: val('name'), region: val('region'), hometown: val('hometown') };
+    const err = m => { $('#editErr').textContent = m; };
+    if (!patch.name) return err('Le nom est obligatoire');
+    if (!patch.region) return err('La région est obligatoire');
+    const age = Number(val('age'));
+    if (!Number.isInteger(age) || age < 15 || age > 60) return err('Âge invalide');
+    let h = Number(val('height_m').replace(',', '.').replace(/\s*m$/i, ''));
+    if (h > 100) h = h / 100; // « 176 » → 1,76
+    if (!(h >= 1.4 && h <= 2.1)) return err('Taille invalide (ex. 1,75)');
+    patch.age = age;
+    patch.height_m = Math.round(h * 100) / 100;
+    patch.instagram = val('instagram').replace(/^@/, '') || null;
+    const btn = $('[data-action="save-cand"]');
+    btn.disabled = true;
+    try {
+      await adminWrite(`Fiche de Miss ${patch.region}`, () => GH.updateJSON(CANDS_PATH,
+        cur => cur.map(x => x.id === id ? { ...x, ...patch } : x), `Fiche : Miss ${patch.region}`));
+      Object.assign(cand(id), patch);
+      renderAll();
+      openFiche(id);
+    } catch { btn.disabled = false; }
+  }
+
   function refreshPhotos(id) {
     renderBoard(); renderPool(); renderCandList(); renderRanking(); renderAdmin();
     const sheet = $('#sheet');
@@ -606,6 +664,7 @@
           </div>
         </div>
         ${GH.isAdmin ? `<div class="row-actions admin-row">
+            <button class="btn small" data-action="edit-cand" data-cid="${id}">${ICON.pencil}Modifier la fiche</button>
             ${photoInput(id, photo ? 'Changer la photo' : 'Ajouter une photo')}
             ${photo ? `<button class="btn ghost small" data-action="photo-remove" data-cid="${id}">${ICON.trash}Retirer</button>` : ''}
           </div>` : ''}
@@ -772,6 +831,7 @@
           <div class="ptile">
             ${avatar(c, 'm')}
             <span class="ptile-txt"><b>${esc(c.region)}</b><small>${esc(c.name)}</small></span>
+            <button class="btn ghost small icon-only" data-action="edit-cand" data-cid="${c.id}" aria-label="Modifier la fiche de ${esc(c.region)}">${ICON.pencil}</button>
             ${photoInput(c.id, photoOf(c) ? 'Changer' : 'Ajouter')}
             ${photoOf(c) ? `<button class="btn ghost small icon-only" data-action="photo-remove" data-cid="${c.id}" aria-label="Retirer la photo de ${esc(c.region)}">${ICON.trash}</button>` : ''}
           </div>`).join('')}</div>
@@ -965,6 +1025,8 @@
         if (GH.isAdmin && confirm('Effacer tous les résultats saisis ?')) saveResults({ top12: [], miss_france: null, dauphines: [null, null, null, null] });
         break;
       case 'photo-remove': if (GH.isAdmin) removePhoto(cid); break;
+      case 'edit-cand': if (GH.isAdmin) openEditor(cid); break;
+      case 'save-cand': if (GH.isAdmin) saveEditor(cid); break;
     }
   }
 
@@ -1078,7 +1140,7 @@
     const [players, res, cands] = await Promise.all([
       loadShared('players.json').catch(() => null),
       loadShared('results.json').catch(() => null),
-      GH.isAdmin ? loadShared(CANDS_PATH).catch(() => null) : null
+      loadShared(CANDS_PATH).catch(() => null)
     ]);
     let changed = false;
     const p = normPlayers(players);
@@ -1086,7 +1148,7 @@
     if (JSON.stringify(res) !== JSON.stringify(state.results)) { state.results = res; changed = true; }
     if (Array.isArray(cands)) cands.forEach(c => {
       const cur = cand(c.id);
-      if (cur && cur.photo_url !== c.photo_url) { cur.photo_url = c.photo_url; changed = true; }
+      if (cur && JSON.stringify(cur) !== JSON.stringify(c)) { Object.assign(cur, c); changed = true; }
     });
     return changed;
   }

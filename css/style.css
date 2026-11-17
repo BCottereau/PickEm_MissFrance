@@ -449,9 +449,15 @@ details.card-block > summary { cursor: pointer; font-weight: 600; color: var(--g
 .admin-list li > span { display: flex; flex-direction: column; min-width: 0; }
 .admin-list small { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
 .admin-list small svg { width: 12px; height: 12px; color: var(--gold); }
-.photo-grid { display: grid; gap: 6px; margin-top: 12px; }
+.photo-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin-top: 12px; }
+.ptile > .btn, .ptile > .file-btn { flex: none; }
+.ptile .av { flex: none; }
 @media (min-width: 600px) { .photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .ptile { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 12px; background: var(--bg-2); }
 .ptile-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ptile-txt b { font-size: 13.5px; }
 .ptile-txt small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.edit-grid { display: grid; gap: 12px; margin-top: 16px; }
+@media (min-width: 600px) { .edit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+input[type=number], input[type=password] { width: 100%; background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 11px 12px; font-size: 16px; outline: none; }
