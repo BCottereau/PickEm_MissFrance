@@ -49,7 +49,7 @@
     results: null, players: [], photoPreview: {},
     picks: Array(12).fill(null), name: '', selected: null, tab: 'pick', sort: 'region', query: '',
     poolFilter: 'all', candFilter: 'all', ficheRank: 0, ficheFor: null,
-    instagram: null, oddsW: 0.5
+    instagram: null, oddsW: 0.5, rankView: 'rank'
   };
 
 
@@ -894,6 +894,12 @@
       <h1 class="h1 page-title">Classement</h1>
       <div id="resStatus"></div>
       <div id="myNote"></div>
+      <div id="rankSeg" class="seg rank-seg" role="group" aria-label="Affichage">
+        <button data-action="rank-view" data-v="rank" aria-pressed="true">Classement</button>
+        <button data-action="rank-view" data-v="all" aria-pressed="false">Tous les pronostics</button>
+      </div>
+      <div id="allView" hidden><div id="allPicks"></div></div>
+      <div id="rankView">
       <div id="podiumRank"></div>
       <div id="lbHead" class="board-head"><h2 class="h2">Détail des pronostics</h2><span class="muted small">sur ${MAX_SCORE} pts</span></div>
       <div id="leaderboard" class="lb"></div>
@@ -915,7 +921,9 @@
           </ul>
           <p class="muted small">Égalité départagée par le nombre de pronostics exacts. Pendant la soirée, les scores suivis d’un « ? » peuvent encore changer.</p>
         </details>
-      </section>`;
+      </section>
+      </div>`;
+    setRankView(state.rankView);
   }
 
   function renderResStatus() {
@@ -962,6 +970,7 @@
   function renderRanking() {
     renderResStatus();
     renderMyNote();
+    renderAllPicks();
     const el = $('#leaderboard');
     if (!el) return;
     const R = results();
@@ -1014,6 +1023,88 @@
     el.querySelectorAll('details').forEach(d => d.addEventListener('toggle', () => {
       d.open ? openDetails.add(d.dataset.key) : openDetails.delete(d.dataset.key);
     }));
+  }
+
+  /* ---------- Classement : vue « Tous les pronostics » ---------- */
+  function setRankView(v) {
+    state.rankView = v;
+    document.querySelectorAll('#rankSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
+    $('#rankView').hidden = v !== 'rank';
+    $('#allView').hidden = v !== 'all';
+  }
+
+  function pickCircle(id, size, r) {
+    const c = cand(id);
+    const k = r ? ` k-${r.kind}` : '';
+    return `<button class="pc-pick${k}" data-action="info" data-cid="${id}" aria-label="${esc(c.region)}, ${esc(c.name)}${r ? ' : ' + esc(r.label) : ''}">${avatar(c, size)}</button>`;
+  }
+
+  function renderAllPicks() {
+    const el = $('#allPicks');
+    if (!el) return;
+    const R = results();
+    const started = resultsStatus(R) !== 'none';
+    const entries = state.players.map(p => ({ ...p, ids: decIds(p.code), me: isMe(p) }))
+      .map(e => ({ ...e, s: scorePicks(e.ids, R) }))
+      .sort((a, b) => b.me - a.me || a.name.localeCompare(b.name, 'fr'));
+    if (!entries.length) {
+      el.innerHTML = `<div class="empty-card">${ICON.crown}<b>Aucun pronostic enregistré</b><p>Ils apparaîtront ici dès que l’organisateur aura ajouté les liens reçus.</p></div>`;
+      return;
+    }
+    const n = entries.length;
+    // La Miss du groupe : qui a été choisie, et par qui
+    const miss = new Map();
+    entries.forEach(e => { const id = e.ids[0]; if (!miss.has(id)) miss.set(id, []); miss.get(id).push(e.name); });
+    const missRows = [...miss.entries()].sort((a, b) => b[1].length - a[1].length || cand(a[0]).region.localeCompare(cand(b[0]).region, 'fr'));
+    // Les plus citées dans les Top 12
+    const top = new Map();
+    entries.forEach(e => e.ids.forEach(id => top.set(id, (top.get(id) || 0) + 1)));
+    const topRows = [...top.entries()].sort((a, b) => b[1] - a[1] || cand(a[0]).region.localeCompare(cand(b[0]).region, 'fr')).slice(0, 8);
+    el.innerHTML = `
+      <section class="group card-block">
+        <h2 class="h2">La Miss du groupe</h2>
+        <p class="muted small">${n} pronostic${n > 1 ? 's' : ''} enregistré${n > 1 ? 's' : ''}</p>
+        <div class="votes">${missRows.map(([id, names]) => {
+          const c = cand(id);
+          return `<button class="vote" data-action="info" data-cid="${id}">
+              ${avatar(c, 's')}
+              <span class="vote-main">
+                <span class="vote-line"><b>${esc(c.region)}</b><span>${names.length} vote${names.length > 1 ? 's' : ''}</span></span>
+                <span class="vote-bar"><span style="width:${Math.round(names.length / n * 100)}%"></span></span>
+                <small>${names.map(esc).join(', ')}</small>
+              </span>
+            </button>`;
+        }).join('')}</div>
+        <h3>Les plus citées dans les Top 12</h3>
+        <div class="cited">${topRows.map(([id, k]) => {
+          const c = cand(id);
+          return `<button class="cite" data-action="info" data-cid="${id}" aria-label="${esc(c.region)} : ${k} sur ${n}">${avatar(c, 's')}<span>${esc(c.region)}</span><b>${k}/${n}</b></button>`;
+        }).join('')}</div>
+      </section>
+      <div class="pcards">${entries.map(e => {
+        const r = i => started ? e.s.rows[i] : null;
+        const m = cand(e.ids[0]);
+        return `<article class="pcard2 ${e.me ? 'me' : ''}">
+            <header><b>${esc(e.name)}${e.me ? ' <small>(moi)</small>' : ''}</b>${started ? `<span class="pc-score">${e.s.total}${e.s.pending ? '<i>?</i>' : ''} pts</span>` : ''}</header>
+            <div class="pc-miss">${pickCircle(e.ids[0], 'l', r(0))}<span><span class="slot-label">${ICON.crown}Miss France</span><b>${esc(m.region)}</b><small>${esc(m.name)}</small></span></div>
+            <div class="pc-dau">${[1, 2, 3, 4].map(i => `<span class="pc-d">${pickCircle(e.ids[i], 'm', r(i))}<span class="rank-badge">${SHORT_DAU[i]}</span><small>${esc(cand(e.ids[i]).region)}</small></span>`).join('')}</div>
+            <div class="pc-top">${[5, 6, 7, 8, 9, 10, 11].map(i => pickCircle(e.ids[i], 's', r(i))).join('')}</div>
+          </article>`;
+      }).join('')}</div>`;
+  }
+
+  // Charger un pronostic reçu par lien dans « Mon pronostic » (pour le modifier sur un autre appareil)
+  function adoptPick(code, name) {
+    if (!validPickCode(code)) return;
+    const ids = decIds(code);
+    if (pickCount() && encIds(state.picks) !== code && !confirm('Remplacer le pronostic déjà enregistré sur cet appareil par celui de ce lien ?')) return;
+    state.picks = ids;
+    state.selected = null;
+    if (name) { state.name = name; save(LS.name, name); if ($('#nameInput')) $('#nameInput').value = name; }
+    closeSheet();
+    commitPicks();
+    setTab('pick');
+    toast('Pronostic chargé : modifiez-le, puis renvoyez le nouveau lien');
   }
 
   /* ---------- Favorites : indice palmarès + Instagram ---------- */
@@ -1325,6 +1416,7 @@
           ${GH.isAdmin
             ? (existing && existing.code === code ? '' : `<button class="btn primary" data-action="import-player" data-code="${code}" data-name="${esc(name)}">${ICON.plus}${existing ? 'Mettre à jour le classement' : 'Ajouter au classement'}</button>`)
             : `<button class="btn primary" data-action="start-own">Faire mon propre pronostic</button>`}
+          <button class="btn" data-action="adopt-pick" data-code="${code}" data-name="${esc(name)}">${ICON.pencil}C’est mon pronostic : le modifier</button>
         </div>
       </div>`;
     showSheet();
@@ -1355,6 +1447,8 @@
       case 'sheet-pick': addPick(cid); openFiche(cid); break;
       case 'sheet-unpick': removePick(slotOf(cid)); toast(`${cand(cid).region} retirée de votre pronostic`); break;
       case 'start-own': closeSheet(); setTab('pick'); break;
+      case 'adopt-pick': adoptPick(t.dataset.code, t.dataset.name); break;
+      case 'rank-view': setRankView(t.dataset.v); break;
       case 'admin-login': openLogin(); break;
       case 'admin-do-login': doLogin(); break;
       case 'admin-logout':
