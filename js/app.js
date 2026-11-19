@@ -9,7 +9,7 @@
   const RANKS = ['Miss France', '1re dauphine', '2e dauphine', '3e dauphine', '4e dauphine'];
   const rankLow = i => i === 0 ? 'Miss France' : RANKS[i];
   const B32 = '0123456789abcdefghijklmnopqrstuv';
-  const LS = { picks: 'mf27.picks', name: 'mf27.name', tab: 'mf27.tab', oddsW: 'mf27.oddsW', editKey: 'mf27.editKey', savedAs: 'mf27.savedAs' };
+  const LS = { picks: 'mf27.picks', name: 'mf27.name', tab: 'mf27.tab', oddsW: 'mf27.oddsW', editKey: 'mf27.editKey', savedAs: 'mf27.savedAs', savedCode: 'mf27.savedCode' };
   // Noms de régions utilisés dans les données historiques (en anglais) pour chaque candidate
   const REGION_KEYS = { Tahiti: ['French Polynesia', 'Tahiti'], Languedoc: ['Languedoc', 'Languedoc-Roussillon'] };
   const FR = {
@@ -49,7 +49,7 @@
     results: null, players: [], photoPreview: {},
     picks: Array(12).fill(null), name: '', selected: null, tab: 'pick', sort: 'region', query: '',
     poolFilter: 'all', candFilter: 'all', ficheRank: 0, ficheFor: null,
-    instagram: null, oddsW: 0.5, rankView: 'rank', filePlayers: [], dbPlayers: []
+    instagram: null, oddsW: 0.5, rankView: 'rank', filePlayers: [], dbPlayers: [], conflict: null
   };
 
 
@@ -541,6 +541,8 @@
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.message || `Enregistrement impossible (${r.status})`);
       save(LS.savedAs, name);
+      save(LS.savedCode, encIds(state.picks));
+      state.conflict = null;
       toast(j.action === 'modifie' ? 'Pronostic mis à jour ✓' : 'Pronostic enregistré ✓ Vous êtes dans le classement', 3500);
       try { state.dbPlayers = await fetchDbPlayers(); } catch { state.dbPlayers = state.dbPlayers.filter(p => norm(p.name) !== norm(name)).concat({ name, code: encIds(state.picks), db: true }); }
       mergePlayers();
@@ -550,6 +552,39 @@
       saving = false;
       renderShare(); renderRanking();
     }
+  }
+
+  // Synchronisation entre les appareils d'un même joueur.
+  // savedCode = version enregistrée (ou reprise) la dernière fois sur CET appareil.
+  // Si la base a changé ailleurs et qu'on n'a rien modifié ici, on reprend la version de la base ;
+  // si on a aussi modifié ici, on demande quelle version garder (state.conflict).
+  function syncMine() {
+    const owner = load(LS.savedAs, '');
+    if (!owner) return false;
+    const mine = state.dbPlayers.find(p => norm(p.name) === norm(owner));
+    if (!mine) return false;
+    const base = load(LS.savedCode, null);
+    const local = encIds(state.picks);
+    const prevConflict = state.conflict;
+    if (mine.code === local) { if (base !== local) save(LS.savedCode, local); state.conflict = null; return prevConflict != null; }
+    if (mine.code === base) { state.conflict = null; return prevConflict != null; } // seulement des modifs locales pas encore enregistrées
+    if (base && (local === base || !isComplete())) {
+      takeSaved(mine, true);
+      return true;
+    }
+    state.conflict = mine.code;
+    return prevConflict !== mine.code;
+  }
+
+  function takeSaved(mine, auto) {
+    state.picks = decIds(mine.code);
+    state.selected = null;
+    save(LS.picks, state.picks);
+    save(LS.savedCode, mine.code);
+    if (norm(state.name) !== norm(mine.name)) { state.name = mine.name; save(LS.name, mine.name); }
+    if ($('#nameInput')) $('#nameInput').value = state.name;
+    state.conflict = null;
+    toast(auto ? 'Pronostic synchronisé avec votre autre appareil ✓' : 'Version enregistrée reprise ✓', 3500);
   }
 
   // Lien personnel : rouvre le pronostic ET sa clé sur un autre appareil (à ne pas partager)
@@ -679,6 +714,16 @@
     if (!el) return;
     if (!isComplete() || !state.name.trim()) { el.innerHTML = ''; return; }
     const st = myStatus();
+    if (state.conflict && !isClosed()) {
+      el.innerHTML = `<div class="share-box conflict">
+          <div class="share-top">${ICON.info}<div><b>Modifié sur un autre appareil</b><p>Votre pronostic a été enregistré depuis un autre appareil, et vous l’avez aussi modifié ici. Quelle version garder ?</p></div></div>
+          <div class="row-actions">
+            <button class="btn primary" data-action="sync-take">Reprendre la version enregistrée</button>
+            <button class="btn" data-action="save-db">Garder celle-ci et l’enregistrer</button>
+          </div>
+        </div>`;
+      return;
+    }
     const msg = isClosed()
       ? 'Les pronostics sont clos depuis le début de l’émission.'
       : {
@@ -715,6 +760,9 @@
     } else if (!state.name.trim()) {
       txt = 'Ajoutez votre <b>pseudo</b> pour enregistrer';
       btn = `<button class="btn primary" data-action="focus-name">Pseudo</button>`;
+    } else if (state.conflict) {
+      txt = 'Modifié sur un autre appareil : quelle version garder ?';
+      btn = `<button class="btn primary" data-action="sync-take">Reprendre l’enregistrée</button>`;
     } else {
       const st = myStatus();
       txt = st === 'ok' ? '✓ Enregistré · modifiable jusqu’au 12/12 21 h 10' : st === 'outdated' ? 'Top 12 modifié depuis l’enregistrement' : 'Pronostic complet !';
@@ -1474,6 +1522,8 @@
           && !confirm(`Reprendre le pronostic de ${name || 'ce lien'} sur cet appareil ? Celui déjà présent ici sera remplacé.`)) return;
       save(LS.editKey, key);
       if (name) save(LS.savedAs, name);
+      save(LS.savedCode, code);
+      state.conflict = null;
       state.picks = decIds(code); state.selected = null;
       if (name) { state.name = name; save(LS.name, name); if ($('#nameInput')) $('#nameInput').value = name; }
       commitPicks(); setTab('pick');
@@ -1527,6 +1577,7 @@
       case 'start-own': closeSheet(); setTab('pick'); break;
       case 'adopt-pick': adoptPick(t.dataset.code, t.dataset.name); break;
       case 'save-db': saveToDb(); break;
+      case 'sync-take': { const mine = state.dbPlayers.find(p => norm(p.name) === norm(load(LS.savedAs, ''))); if (mine) { takeSaved(mine, false); commitPicks(); } break; }
       case 'copy-own-link': copyText(ownLink(), 'Lien personnel copié : ne le partagez pas'); break;
       case 'rank-view': setRankView(t.dataset.v); break;
       case 'admin-login': openLogin(); break;
@@ -1725,6 +1776,7 @@
     await reloadShared();
     state.picks = sanitizePicks(load(LS.picks, []));
     state.name = load(LS.name, '');
+    syncMine();
     try { localStorage.removeItem('mf27.players'); localStorage.removeItem('mf27.results'); } catch { /* ancienne version */ }
 
     { const w = Number(load(LS.oddsW, 0.5)); state.oddsW = w >= 0 && w <= 1 ? w : 0.5; }
@@ -1738,10 +1790,16 @@
     renderCountdown();
     setInterval(renderCountdown, 60e3);
     // Classement et résultats relus régulièrement (utile le soir de l'élection)
-    setInterval(async () => {
+    const refresh = async () => {
       if (document.visibilityState !== 'visible' || drag) return;
-      if (await reloadShared()) { renderBoard(); renderPool(); renderShare(); renderCandList(); renderRanking(); renderOdds(); if (state.tab !== 'admin') renderAdmin(); }
-    }, 60e3);
+      const changed = await reloadShared();
+      const synced = syncMine();
+      if (synced) save(LS.picks, state.picks);
+      if (changed || synced) { renderBoard(); renderPool(); renderShare(); renderCandList(); renderRanking(); renderOdds(); refreshFicheCta(); if (state.tab !== 'admin') renderAdmin(); }
+    };
+    setInterval(refresh, 60e3);
+    // en revenant sur l'appli (changement d'onglet ou de téléphone), on relit tout de suite
+    document.addEventListener('visibilitychange', refresh);
     window.addEventListener('hashchange', handleHash);
     handleHash();
   }
