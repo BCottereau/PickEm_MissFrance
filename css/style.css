@@ -611,3 +611,5 @@ input[type=date] { width: 100%; background: var(--white); border: 1px solid var(
 .pc-pick.k-exact .av { box-shadow: 0 0 0 2px var(--white), 0 0 0 4px var(--good); }
 .pc-pick.k-part .av { box-shadow: 0 0 0 2px var(--white), 0 0 0 4px var(--amber); }
 .pc-pick.k-miss .av { opacity: .35; filter: grayscale(1); }
+.own-link { margin-top: 10px; }
+.own-link p { margin: 4px 0 8px; }

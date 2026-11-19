@@ -7,30 +7,28 @@ Statique (HTML/CSS/JS), sans serveur ni compte, hébergée sur GitHub Pages.
 
 ## Qui fait quoi
 
-**Les joueurs** (n'importe qui ayant le lien) peuvent seulement :
-- faire leur Top 12 : la Miss France, les 4 dauphines dans l'ordre, puis 7 autres ;
-- consulter les fiches des candidates et le classement officiel ;
-- copier leur lien de pronostic et l'envoyer à l'organisateur. Pour changer d'avis, il
-  suffit de modifier son Top 12 et de renvoyer le nouveau lien : l'app indique si le
-  classement n'est plus à jour.
+**Les joueurs** (n'importe qui ayant le lien) :
+- font leur Top 12 (Miss France, 4 dauphines dans l'ordre, 7 autres) et cliquent sur
+  **« Enregistrer »** : le pronostic part dans la base Supabase et compte aussitôt dans
+  le classement ;
+- peuvent le modifier et l'enregistrer à nouveau jusqu'au **12 décembre 21 h 10** ;
+  ensuite la base refuse tout enregistrement ;
+- pour le modifier depuis un autre appareil : « Modifier depuis un autre appareil »
+  → « Copier mon lien personnel » (contient la clé de modification, à ne pas partager).
 
-Le site ne peut pas être modifié par les joueurs : toute écriture passe par GitHub et
-exige le jeton de l'organisateur.
+**L'organisateur** (onglet **Admin**, connexion par jeton GitHub) gère les photos, les
+fiches, les relevés Instagram et les résultats, et peut encore ajouter à la main un
+pronostic reçu par lien (`players.json`).
 
-**L'organisateur** (onglet **Admin**, après connexion) :
-- ajoute ou met à jour les joueurs en collant leurs liens, ou en ouvrant directement un
-  lien reçu → `players.json` ;
-- publie son propre pronostic depuis « Mon pronostic », et le republie après chaque
-  modification ;
-- ajoute ou change les photos des candidates (redimensionnées automatiquement) →
-  `photos/` + `photo_url` dans `data/candidates_2027.json` ;
-- corrige les fiches des candidates (nom, région affichée, âge, taille, ville, Instagram)
-  → `data/candidates_2027.json` ;
-- saisit les résultats le soir de l'élection, au fur et à mesure → `results.json`.
+## Base Supabase
 
-Chaque modification est un commit dans le dépôt, visible par tous d'ici 1 à 2 minutes
-(le temps que GitHub Pages republie). Le site relit le classement et les résultats
-chaque minute.
+Projet `pickem-missfrance`, table `public.pronostics` (pseudo unique, Top 12 encodé,
+empreinte SHA-256 de la clé de modification, dates). Lecture publique sans l'empreinte ;
+aucune écriture directe : tout passe par la fonction `save_pronostic(pseudo, code, clé)`,
+qui crée le pronostic si le pseudo est libre, ne le modifie qu'avec la même clé, et
+refuse tout après le 12 décembre 21 h 10. Le site utilise la clé publique
+(`sb_publishable_…`), faite pour être visible. Pour supprimer un faux pronostic :
+Supabase → Table Editor → `pronostics`.
 
 ## Onglet « Favorites »
 

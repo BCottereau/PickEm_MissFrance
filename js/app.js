@@ -9,7 +9,7 @@
   const RANKS = ['Miss France', '1re dauphine', '2e dauphine', '3e dauphine', '4e dauphine'];
   const rankLow = i => i === 0 ? 'Miss France' : RANKS[i];
   const B32 = '0123456789abcdefghijklmnopqrstuv';
-  const LS = { picks: 'mf27.picks', name: 'mf27.name', tab: 'mf27.tab', oddsW: 'mf27.oddsW' };
+  const LS = { picks: 'mf27.picks', name: 'mf27.name', tab: 'mf27.tab', oddsW: 'mf27.oddsW', editKey: 'mf27.editKey', savedAs: 'mf27.savedAs' };
   // Noms de régions utilisés dans les données historiques (en anglais) pour chaque candidate
   const REGION_KEYS = { Tahiti: ['French Polynesia', 'Tahiti'], Languedoc: ['Languedoc', 'Languedoc-Roussillon'] };
   const FR = {
@@ -49,7 +49,7 @@
     results: null, players: [], photoPreview: {},
     picks: Array(12).fill(null), name: '', selected: null, tab: 'pick', sort: 'region', query: '',
     poolFilter: 'all', candFilter: 'all', ficheRank: 0, ficheFor: null,
-    instagram: null, oddsW: 0.5, rankView: 'rank'
+    instagram: null, oddsW: 0.5, rankView: 'rank', filePlayers: [], dbPlayers: []
   };
 
 
@@ -286,14 +286,17 @@
   }
 
   // Où en est mon propre pronostic par rapport au classement officiel ?
+  // Un pronostic du classement est « le mien » s'il porte mon pseudo ET que cet appareil l'a enregistré
+  // (ou qu'il est identique au mien) : un homonyme sur un autre appareil n'est pas moi.
+  const isMe = p => !!state.name.trim() && norm(p.name) === norm(state.name)
+    && (p.code === encIds(state.picks) || norm(load(LS.savedAs, '')) === norm(p.name) || GH.isAdmin && !p.db);
   function myStatus() {
     if (!isComplete() || !state.name.trim()) return 'incomplete';
     const code = encIds(state.picks);
-    const byName = state.players.find(p => norm(p.name) === norm(state.name));
-    if (byName) return byName.code === code ? 'ok' : 'outdated';
-    return state.players.some(p => p.code === code) ? 'ok' : 'missing';
+    const mine = state.players.find(isMe);
+    if (mine) return mine.code === code ? 'ok' : 'outdated';
+    return 'missing';
   }
-  const isMe = p => !!state.name.trim() && norm(p.name) === norm(state.name);
 
   /* ---------- Écritures de l'organisateur ---------- */
   async function adminWrite(label, fn) {
@@ -325,7 +328,7 @@
       return { players };
     }, `Classement : ${valid.map(e => e.name || 'Anonyme').join(', ')}`)).catch(() => null);
     if (!data) return;
-    state.players = normPlayers(data);
+    state.filePlayers = normPlayers(data); mergePlayers();
     renderAll();
     const parts = [sum.added && `${sum.added} ajouté${sum.added > 1 ? 's' : ''}`, sum.updated && `${sum.updated} mis à jour`].filter(Boolean);
     if (parts.length) setTimeout(() => toast(parts.join(' · ') + ' ✓', 3000), 1500);
@@ -334,7 +337,7 @@
   async function removePlayer(name) {
     const data = await adminWrite('Classement', () => GH.updateJSON('players.json',
       cur => ({ players: normPlayers(cur).filter(p => p.name !== name) }), `Classement : retire ${name}`)).catch(() => null);
-    if (data) { state.players = normPlayers(data); renderAll(); }
+    if (data) { state.filePlayers = normPlayers(data); mergePlayers(); renderAll(); }
   }
 
   async function saveResults(raw) {
@@ -485,6 +488,73 @@
   }
 
 
+  /* ---------- Base Supabase : chacun enregistre son pronostic ---------- */
+  // Clé publique (faite pour être visible) : les règles de la base protègent les données.
+  const SUPABASE = { url: 'https://czvrergmbjapigluzjzv.supabase.co', key: 'sb_publishable_1wyggs8slK3spRgDoNkzOQ_ILNyDPxc' };
+  const isClosed = () => Date.now() >= ELECTION.getTime();
+
+  // Clé secrète de cet appareil : prouve que c'est bien l'auteur qui modifie son pronostic
+  function editKey() {
+    let k = load(LS.editKey, null);
+    if (typeof k !== 'string' || k.length < 20) {
+      const b = new Uint8Array(24);
+      crypto.getRandomValues(b);
+      k = btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      save(LS.editKey, k);
+    }
+    return k;
+  }
+
+  async function fetchDbPlayers() {
+    const r = await fetch(`${SUPABASE.url}/rest/v1/pronostics?select=pseudo,code,updated_at&order=created_at.asc`, {
+      headers: { apikey: SUPABASE.key }, cache: 'no-store'
+    });
+    if (!r.ok) throw new Error(`Base indisponible (${r.status})`);
+    const rows = await r.json();
+    return rows.filter(x => x && typeof x.pseudo === 'string' && validPickCode(x.code))
+      .map(x => ({ name: x.pseudo.trim(), code: x.code, updated: x.updated_at, db: true }));
+  }
+
+  // Classement = pronostics de la base + anciens liens ajoutés par l'organisateur (players.json)
+  function mergePlayers() {
+    const byName = new Map();
+    state.filePlayers.forEach(p => byName.set(norm(p.name), p));
+    state.dbPlayers.forEach(p => byName.set(norm(p.name), p)); // la base fait foi pour un même pseudo
+    state.players = [...byName.values()];
+  }
+
+  let saving = false;
+  async function saveToDb() {
+    if (saving) return;
+    if (isClosed()) { toast('Les pronostics sont clos depuis le début de l’émission', 4000); return; }
+    if (!isComplete()) { toast('Complétez d’abord vos 12 candidates'); return; }
+    const name = state.name.trim();
+    if (!name) { toast('Ajoutez votre pseudo'); $('#nameInput').focus(); return; }
+    saving = true;
+    renderShare();
+    try {
+      const r = await fetch(`${SUPABASE.url}/rest/v1/rpc/save_pronostic`, {
+        method: 'POST',
+        headers: { apikey: SUPABASE.key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_pseudo: name, p_code: encIds(state.picks), p_key: editKey() })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.message || `Enregistrement impossible (${r.status})`);
+      save(LS.savedAs, name);
+      toast(j.action === 'modifie' ? 'Pronostic mis à jour ✓' : 'Pronostic enregistré ✓ Vous êtes dans le classement', 3500);
+      try { state.dbPlayers = await fetchDbPlayers(); } catch { state.dbPlayers = state.dbPlayers.filter(p => norm(p.name) !== norm(name)).concat({ name, code: encIds(state.picks), db: true }); }
+      mergePlayers();
+    } catch (e) {
+      toast(e.message === 'Failed to fetch' ? 'Pas de connexion : réessayez dans un instant' : e.message, 5000);
+    } finally {
+      saving = false;
+      renderShare(); renderRanking();
+    }
+  }
+
+  // Lien personnel : rouvre le pronostic ET sa clé sur un autre appareil (à ne pas partager)
+  const ownLink = () => `${baseUrl()}#p=${encIds(state.picks)}&n=${encodeURIComponent(state.name.trim())}&k=${encodeURIComponent(editKey())}`;
+
   /* ---------- Rendu : Mon pronostic ---------- */
   function buildPickTab() {
     $('#tab-pick').innerHTML = `
@@ -609,33 +679,24 @@
     if (!el) return;
     if (!isComplete() || !state.name.trim()) { el.innerHTML = ''; return; }
     const st = myStatus();
-    if (GH.isAdmin) {
-      const msg = {
-        ok: '✓ Votre pronostic est à jour dans le classement.',
-        outdated: 'Vous avez modifié votre Top 12 : republiez-le pour mettre le classement à jour.',
-        missing: 'Votre pronostic n’est pas encore dans le classement.'
+    const msg = isClosed()
+      ? 'Les pronostics sont clos depuis le début de l’émission.'
+      : {
+        ok: '✓ Votre pronostic est enregistré et compte dans le classement. Vous pouvez le modifier jusqu’au 12 décembre 21 h 10 : changez votre Top 12 puis enregistrez à nouveau.',
+        outdated: 'Vous avez modifié votre Top 12 : enregistrez-le pour mettre à jour le classement.',
+        missing: 'Enregistrez votre pronostic pour entrer dans le classement. Vous pourrez le modifier jusqu’au début de l’émission.'
       }[st];
-      el.innerHTML = `<div class="share-box ${st === 'ok' ? 'ok' : ''}">
-          <div class="share-top">${ICON.crown}<div><b>Mon pronostic (organisateur)</b><p>${msg}</p></div></div>
-          <div class="row-actions">
-            ${st === 'ok' ? '' : `<button class="btn primary" data-action="publish-mine">${ICON.share}${st === 'outdated' ? 'Mettre à jour' : 'Publier dans le classement'}</button>`}
-            <button class="btn ghost" data-action="copy-link">${ICON.copy}Copier mon lien</button>
-          </div>
-        </div>`;
-      return;
-    }
-    const msg = {
-      ok: '✓ Votre pronostic est dans le classement. Si vous changez d’avis, modifiez votre Top 12 et renvoyez le nouveau lien.',
-      outdated: 'Vous avez modifié votre Top 12 : renvoyez ce nouveau lien à l’organisateur.',
-      missing: 'Envoyez ce lien à l’organisateur pour entrer dans le classement. Vous pourrez encore le modifier ensuite.'
-    }[st];
     el.innerHTML = `<div class="share-box ${st === 'ok' ? 'ok' : ''}">
-        <div class="share-top">${ICON.share}<div><b>Votre lien de pronostic</b><p>${msg}</p></div></div>
-        <input class="link-field" readonly value="${esc(pickLink())}" aria-label="Lien de partage" onclick="this.select()">
+        <div class="share-top">${st === 'ok' ? ICON.crown : ICON.share}<div><b>${st === 'ok' ? 'Pronostic enregistré' : 'Mon pronostic'}</b><p>${msg}</p></div></div>
         <div class="row-actions">
-          <button class="btn primary" data-action="copy-link">${ICON.copy}Copier le lien</button>
-          ${navigator.share ? `<button class="btn" data-action="share-link">${ICON.share}Envoyer</button>` : ''}
+          ${st !== 'ok' && !isClosed() ? `<button class="btn primary" data-action="save-db" ${saving ? 'disabled' : ''}>${saving ? 'Enregistrement…' : st === 'outdated' ? 'Enregistrer les modifications' : 'Enregistrer mon pronostic'}</button>` : ''}
+          <button class="btn ghost" data-action="copy-link">${ICON.copy}Partager mon Top 12</button>
         </div>
+        ${st !== 'missing' ? `<details class="more own-link">
+            <summary>Modifier depuis un autre appareil</summary>
+            <p class="muted small">Ouvrez ce lien personnel sur votre autre téléphone ou ordinateur. Il contient votre clé de modification : <b>ne l’envoyez à personne</b>.</p>
+            <button class="btn small" data-action="copy-own-link">${ICON.copy}Copier mon lien personnel</button>
+          </details>` : ''}
       </div>`;
   }
 
@@ -645,21 +706,21 @@
     if (!el) return;
     const n = pickCount();
     let txt, btn;
-    if (n < 12) {
-      txt = `Encore <b>${12 - n} choix</b> avant de pouvoir partager`;
-      btn = `<button class="btn primary" disabled>${GH.isAdmin ? 'Publier' : 'Copier mon lien'}</button>`;
+    if (isClosed()) {
+      txt = 'Pronostics clos · place au direct !';
+      btn = `<button class="btn ghost" data-action="tab" data-tab="rank">Classement</button>`;
+    } else if (n < 12) {
+      txt = `Encore <b>${12 - n} choix</b> avant d’enregistrer`;
+      btn = `<button class="btn primary" disabled>Enregistrer</button>`;
     } else if (!state.name.trim()) {
-      txt = 'Ajoutez votre <b>pseudo</b> pour partager';
+      txt = 'Ajoutez votre <b>pseudo</b> pour enregistrer';
       btn = `<button class="btn primary" data-action="focus-name">Pseudo</button>`;
     } else {
       const st = myStatus();
-      if (GH.isAdmin) {
-        txt = st === 'ok' ? '✓ À jour dans le classement' : st === 'outdated' ? 'Top 12 modifié depuis la publication' : 'Pronostic complet';
-        btn = st === 'ok' ? `<button class="btn ghost" data-action="copy-link">${ICON.copy}Lien</button>` : `<button class="btn primary" data-action="publish-mine">${st === 'outdated' ? 'Mettre à jour' : 'Publier'}</button>`;
-      } else {
-        txt = st === 'ok' ? '✓ Dans le classement' : st === 'outdated' ? 'Top 12 modifié : renvoyez le lien' : 'Complet ! Envoyez votre lien';
-        btn = `<button class="btn primary" data-action="copy-link">${ICON.copy}Copier mon lien</button>`;
-      }
+      txt = st === 'ok' ? '✓ Enregistré · modifiable jusqu’au 12/12 21 h 10' : st === 'outdated' ? 'Top 12 modifié depuis l’enregistrement' : 'Pronostic complet !';
+      btn = st === 'ok'
+        ? `<button class="btn ghost" data-action="copy-link">${ICON.copy}Partager</button>`
+        : `<button class="btn primary" data-action="save-db" ${saving ? 'disabled' : ''}>${saving ? 'Enregistrement…' : st === 'outdated' ? 'Mettre à jour' : 'Enregistrer'}</button>`;
     }
     el.innerHTML = `<span class="ab-txt">${txt}</span>${btn}`;
   }
@@ -956,9 +1017,9 @@
     if (!el) return;
     const st = myStatus();
     const txt = {
-      incomplete: GH.isAdmin ? '' : 'Vous n’êtes pas encore dans le classement : faites votre Top 12 et envoyez votre lien à l’organisateur.',
-      missing: GH.isAdmin ? 'Votre pronostic n’est pas publié : « Pronostic » → Publier.' : 'Votre pronostic n’est pas encore dans le classement : envoyez votre lien à l’organisateur.',
-      outdated: GH.isAdmin ? 'Votre Top 12 a changé depuis sa publication : « Pronostic » → Mettre à jour.' : 'Votre Top 12 a changé : renvoyez votre nouveau lien à l’organisateur.',
+      incomplete: isClosed() ? '' : 'Vous n’êtes pas encore dans le classement : faites votre Top 12 et enregistrez-le.',
+      missing: isClosed() ? '' : 'Votre pronostic n’est pas encore enregistré : « Pronostic » → Enregistrer.',
+      outdated: isClosed() ? '' : 'Votre Top 12 a changé depuis l’enregistrement : « Pronostic » → Mettre à jour.',
       ok: ''
     }[st];
     el.innerHTML = txt ? `<p class="note">${txt}</p>` : '';
@@ -980,7 +1041,7 @@
     if (!entries.length) {
       pod.innerHTML = '';
       $('#lbHead').hidden = true;
-      el.innerHTML = `<div class="empty-card">${ICON.trophy}<b>Personne pour l’instant</b><p>Les pronostics apparaîtront ici dès que l’organisateur les aura enregistrés.</p>
+      el.innerHTML = `<div class="empty-card">${ICON.trophy}<b>Personne pour l’instant</b><p>Les pronostics apparaissent ici dès qu’ils sont enregistrés.</p>
         ${isComplete() ? '' : '<button class="btn primary" data-action="tab" data-tab="pick">Faire mon pronostic</button>'}</div>`;
       return;
     }
@@ -1048,7 +1109,7 @@
       .map(e => ({ ...e, s: scorePicks(e.ids, R) }))
       .sort((a, b) => b.me - a.me || a.name.localeCompare(b.name, 'fr'));
     if (!entries.length) {
-      el.innerHTML = `<div class="empty-card">${ICON.crown}<b>Aucun pronostic enregistré</b><p>Ils apparaîtront ici dès que l’organisateur aura ajouté les liens reçus.</p></div>`;
+      el.innerHTML = `<div class="empty-card">${ICON.crown}<b>Aucun pronostic enregistré</b><p>Ils apparaissent ici dès que chacun enregistre le sien.</p></div>`;
       return;
     }
     const n = entries.length;
@@ -1253,12 +1314,16 @@
 
       <div class="card-block">
         <h3>Joueurs (${state.players.length})</h3>
-        <p class="muted">Collez les liens reçus de vos amis (un ou plusieurs, même au milieu d’un message). Un nouveau lien avec le même pseudo remplace l’ancien.</p>
-        <textarea id="linksInput" rows="3" placeholder="https://…#p=…&amp;n=Léa"></textarea>
-        <div class="row-actions"><button class="btn primary" data-action="add-links">${ICON.plus}Ajouter au classement</button></div>
+        <p class="muted">Chacun enregistre lui-même son pronostic dans la base (bouton « Enregistrer »). Pour supprimer un faux pronostic de la base : Supabase → <i>Table Editor</i> → <code>pronostics</code>.</p>
         ${state.players.length ? `<ul class="admin-list">${state.players.map(p => `
-          <li><span><b>${esc(p.name)}</b><small>${ICON.crown}${esc(cand(decIds(p.code)[0]).region)}</small></span>
-          <button class="btn ghost small" data-action="remove-player" data-name="${esc(p.name)}" aria-label="Retirer ${esc(p.name)}">${ICON.trash}</button></li>`).join('')}</ul>` : ''}
+          <li><span><b>${esc(p.name)}</b><small>${ICON.crown}${esc(cand(decIds(p.code)[0]).region)} · ${p.db ? 'base' : 'lien ajouté à la main'}</small></span>
+          ${p.db ? '' : `<button class="btn ghost small" data-action="remove-player" data-name="${esc(p.name)}" aria-label="Retirer ${esc(p.name)}">${ICON.trash}</button>`}</li>`).join('')}</ul>` : ''}
+        <details class="more">
+          <summary>Ajouter un pronostic reçu par lien</summary>
+          <p class="muted small">Pour quelqu’un qui vous a envoyé son lien au lieu d’enregistrer. Un nouveau lien avec le même pseudo remplace l’ancien.</p>
+          <textarea id="linksInput" rows="3" placeholder="https://…#p=…&amp;n=Léa"></textarea>
+          <div class="row-actions"><button class="btn primary" data-action="add-links">${ICON.plus}Ajouter au classement</button></div>
+        </details>
       </div>
 
       ${instaAdminHTML()}
@@ -1402,6 +1467,19 @@
     const code = sp.get('p').toLowerCase();
     const name = (sp.get('n') || '').trim();
     if (!validPickCode(code)) { toast('Lien de pronostic invalide'); return; }
+    const key = sp.get('k');
+    if (key && key.length >= 20) {
+      // Lien personnel : reprend le pronostic et la clé de modification sur cet appareil
+      if (load(LS.editKey, null) !== key && pickCount() && encIds(state.picks) !== code
+          && !confirm(`Reprendre le pronostic de ${name || 'ce lien'} sur cet appareil ? Celui déjà présent ici sera remplacé.`)) return;
+      save(LS.editKey, key);
+      if (name) save(LS.savedAs, name);
+      state.picks = decIds(code); state.selected = null;
+      if (name) { state.name = name; save(LS.name, name); if ($('#nameInput')) $('#nameInput').value = name; }
+      commitPicks(); setTab('pick');
+      toast('Pronostic repris sur cet appareil : vous pouvez le modifier puis enregistrer', 4000);
+      return;
+    }
     if (code === encIds(state.picks) && norm(name) === norm(state.name)) { toast('C’est votre propre pronostic'); return; }
     const existing = state.players.find(p => norm(p.name) === norm(name));
     const sheet = $('#sheet');
@@ -1448,6 +1526,8 @@
       case 'sheet-unpick': removePick(slotOf(cid)); toast(`${cand(cid).region} retirée de votre pronostic`); break;
       case 'start-own': closeSheet(); setTab('pick'); break;
       case 'adopt-pick': adoptPick(t.dataset.code, t.dataset.name); break;
+      case 'save-db': saveToDb(); break;
+      case 'copy-own-link': copyText(ownLink(), 'Lien personnel copié : ne le partagez pas'); break;
       case 'rank-view': setRankView(t.dataset.v); break;
       case 'admin-login': openLogin(); break;
       case 'admin-do-login': doLogin(); break;
@@ -1602,16 +1682,20 @@
   const loadShared = path => GH.isAdmin ? GH.readJSON(path).catch(() => getJSON(path)) : getJSON(path);
 
   async function reloadShared() {
-    const [players, res, cands, insta] = await Promise.all([
+    const [players, res, cands, insta, db] = await Promise.all([
       loadShared('players.json').catch(() => null),
       loadShared('results.json').catch(() => null),
       loadShared(CANDS_PATH).catch(() => null),
-      loadShared('data/instagram.json').catch(() => null)
+      loadShared('data/instagram.json').catch(() => null),
+      fetchDbPlayers().catch(() => null)
     ]);
     let changed = false;
     if (insta && JSON.stringify(insta) !== JSON.stringify(state.instagram)) { state.instagram = insta; changed = true; }
-    const p = normPlayers(players);
-    if (JSON.stringify(p) !== JSON.stringify(state.players)) { state.players = p; changed = true; }
+    const before = JSON.stringify(state.players);
+    state.filePlayers = normPlayers(players);
+    if (db) state.dbPlayers = db;
+    mergePlayers();
+    if (JSON.stringify(state.players) !== before) changed = true;
     if (JSON.stringify(res) !== JSON.stringify(state.results)) { state.results = res; changed = true; }
     if (Array.isArray(cands)) cands.forEach(c => {
       const cur = cand(c.id);
